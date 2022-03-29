@@ -141,7 +141,7 @@ def lasso_std(params):
     omega0 = np.count_nonzero(Y)/nm
     omega1 = (nm-np.count_nonzero(Y == 1))/nm
     omegam1 = (nm - np.count_nonzero(Y == -1))/nm
-    #print(omega0,omega1,omegam1)
+    # print(omega0,omega1,omegam1)
 
     model = LogisticRegression(
         # equivalente all'uso di l1_ratio=1 significa che usiamo penalizzazione Lasso
@@ -342,7 +342,7 @@ def confusion_matrix(params):
     count_ab = {}
     for k in values:
         for j in values:
-            str_kj ='(%d,%d)' % (k,j)
+            str_kj = '(%d,%d)' % (k, j)
             count_ab[str_kj] = np.count_nonzero(np.logical_and(adj_mat == k,
                                                                beta == j))
     fp_exc = count_ab['(0,1)'] + count_ab['(-1,1)']
@@ -399,7 +399,6 @@ def confusion_matrix(params):
     np.save(fname_conf_mat, dout)
 
     return dout
-
 
 
 def ratio(a, b):
@@ -504,9 +503,9 @@ def run_all(rel_path_config='0000', rel_path_results=''):
     df = pd.DataFrame(dict_out)
     df['tp+tn+fp+fn'] = df['tp'] + df['tn'] + df['fp'] + df['fn']
     df['(tp+tn+fp+fn)_exc'] = df['tp_exc'] + df['tn_exc'] + df['fp_exc'] + \
-                              df['fn_exc']
+        df['fn_exc']
     df['(tp+tn+fp+fn)_inh'] = df['tp_inh'] + df['tn_inh'] + df['fp_inh'] + \
-                              df['fn_inh']
+        df['fn_inh']
     conn = load_dict(os.path.join(configfolder,
                                   '%s/params_netw.npy' % rel_path_config))
     src = np.array(conn['conn_mat'])[:, 0]
@@ -562,3 +561,21 @@ def subsample_output(fn_out='', num_nrn_sample=20):
     dnew['params_neurons']['num_exc_neurons'] = num_exc_sample
     dnew['nrn_sample'] = nrn_sample  # the sampled neurons
     return dnew
+
+
+def matthews_coeff(conf_mat):
+    """Compute the Matthews cross-correlation coefficient.
+
+    used on binary matrices
+
+    reference:
+    """
+    tp = conf_mat[:, 0]
+    fp = conf_mat[:, 1]
+    tn = conf_mat[:, 2]
+    fn = conf_mat[:, 3]
+    den = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+    idx = np.where(den == 0)[0]
+    mcc = (tp * tn - fp * fn) / np.sqrt(den)
+    mcc[idx] = -1
+    return mcc
