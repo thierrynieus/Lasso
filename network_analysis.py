@@ -39,7 +39,7 @@ def plot_traces(fn_data, num_max=1e10, show_noise=True, delay=0):
                 plt.plot([nt+delay, nt+delay], [-80, 20], 'b-')
 
 
-def raster_plot(fn_data, bin_size=20):
+def raster_plot(fn_data, binsz=20):
     """Produce a raster plot."""
     data = nu.load_dict(fn_data)
     num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
@@ -53,9 +53,9 @@ def raster_plot(fn_data, bin_size=20):
         ax1.plot(tspk, np.repeat(k, len(tspk)), 'ko')
         spk.extend(tspk)
         tmax = max(tmax, np.max(spk))
-    tmax += bin_size
-    bins = np.arange(0, tmax, bin_size)
-    h = np.histogram(spk, bins=bins)[0]/(bin_size/1000.*num_neurons)
+    tmax += binsz
+    bins = np.arange(0, tmax, binsz)
+    h = np.histogram(spk, bins=bins)[0]/(binsz/1000.*num_neurons)
     ax2.plot(bins[:-1], h, 'r-', lw=2)
     ax1.set_xlabel('time (ms)', fontsize=14)
     ax1.set_ylabel('cell', fontsize=14, color='k')
@@ -76,3 +76,47 @@ def mean_firing_rate(fn_data, twindow=5000, figsize=(5, 5)):
     plt.ylabel('mean firing rate (Hz)', fontsize=16)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
+
+
+def remove_synchronous_spikes(fn_data, binsz=1, mfr_thresh=20, dt_thresh=20):
+    """Delete synchronous spikes.
+
+    fn_data: file name
+    binsz (ms):
+    mfr_threshold (Hz):
+    """
+    data = nu.load_dict(fn_data)
+    # need to add a key with number of neurons
+    if 'num_neurons' in data:
+        num_neurons = data['num_neurons']
+    else:
+        # in old fn_data num_neurons was not available!
+        num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
+    spk = []
+    tmax = -1
+    for k in range(num_neurons):
+        tspk = data[k]['spikes_nrn']
+        spk.extend(tspk)
+        tmax = max(tmax, np.max(spk))
+    tmax += binsz
+    bins = np.arange(0, tmax, binsz)
+    in_firing = np.histogram(spk, bins=bins)[0]/(binsz/1000.*num_neurons)
+    idx = np.where(in_firing > mfr_thresh)[0]
+    tsyn = bins[idx]
+    tsyn = np.hstack((tsyn, 1e12))
+    tsyn_diff = np.diff(tsyn)
+    idx2 = np.where(tsyn_diff > dt_thresh)[0]
+    n_syn = len(idx2)
+
+    i = 0
+    syn_int = []
+    for k in range(n_syn):
+        syn_int.append((tsyn[i], tsyn[idx2[k]]))
+        i = idx2[k] + 1
+    for k in range(num_neurons):
+        tspk = data[k]['spikes_nrn']
+        for ti, te in syn_int:
+            idx = np.where((tspk > ti) & (tspk < te))[0]
+            tspk[idx] = -1
+        data[k]['spikes_nrn'] = tspk[tspk > 0]
+    return data

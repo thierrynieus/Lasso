@@ -102,6 +102,7 @@ nest.Simulate(params_neurons['sim_duration'])
 dout = shape_output(rec)
 dout['cfg_num'] = config_num
 dout['fpath_cfg'] = fpath_cfg
+dout['num_neurons'] = params_netw['num_neurons']
 dout['params_syn'] = params_syn
 dout['params_noise'] = params_noise
 dout['params_neurons'] = params_neurons

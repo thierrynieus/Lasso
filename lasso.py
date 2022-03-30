@@ -1,10 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import block_diag
+from scipy.sparse import coo_matrix, block_diag
+from sklearn.linear_model import LogisticRegression
+
 import os
-from network_util import load_dict
 import pandas as pd
 
+from network_util import load_dict
 resultsfolder = '/home/tnieus/Projects/RESULTS/Lasso/'
 configfolder = '/home/tnieus/Projects/CODE/Lasso/config/'
 
@@ -22,7 +24,7 @@ params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
 params_roc = {'rel_path_results': 'test',
               'fname_conf_mat': 'RSmat_conf_mat.npy',
               'reg_vect': [0.0001, 0.001, 0.005, 0.0075, 0.01, 0.025, 0.05,
-                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 1, 2]}
+                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55, 0.6]}
 
 
 def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
@@ -77,123 +79,6 @@ def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
     np.save(os.path.join(resultsfolder, fn_out), {'R': mat_int, 'S': mat_ext})
 
 
-def lasso_std(params):
-    """Perform lasso regression.
-
-    load R and S matrices
-    """
-    # Inverso del coefficiente di regolarizzazione (lambda^{-1})
-    reg_strength = params['regularization_strength']
-
-    # output folder
-    fpath_out = os.path.join(resultsfolder, params['rel_path_results'],
-                             'reg_%g' % reg_strength)
-    if not(os.path.isdir(fpath_out)):
-        os.mkdir(fpath_out)
-    fname_lasso = os.path.join(fpath_out, params['fname_lasso'])
-    # skip the analysis if skip_existent is TRUE and file already exists
-    if os.path.isfile(fname_lasso) & params['skip_existent']:
-        return None
-
-    # load data
-    fn = os.path.join(resultsfolder, params['rel_path_results'],
-                      params['fname_RSmat'])
-    data = np.load(fn, allow_pickle=1).item()
-    R = data['R']
-    S = data['S']
-
-    #
-    n, m = S.shape   # number of neurons (N) and observations (M)
-    Y = R.reshape(-1, 1)  # response vector
-
-    # Definiamo la trasposta di S
-    ST = np.transpose(S)
-
-    # Definiamo X a partire da ST
-    #print('start: block matrices')
-    X = ST
-    for i in range(n-1):  # Si può evitare questo ciclo for??
-        X = block_diag(X, ST)
-    #print('stop: block matrices')
-
-    '''
-    nota1
-    X=block_diag([ST for i in range(N)]) # una comprehensive list è più veloce
-    https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.block_diag.html
-    nota2
-    implementazione per matrici sparse
-    https://stackoverflow.com/questions/30895154/scipy-block-diag-of-a-list-of-matrices
-    https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.block_diag.html
-    '''
-
-    ############################################################################################################
-
-    # Importiamo libreria per Lasso Logistico
-    from sklearn.linear_model import LogisticRegression
-
-    '''
-    Definisco pesi \omega_{i,m}=\sum_{i,m} y[i,m] se y[i,m]=0 oppure \omega_{i,m}=\sum_{i,m} (1-y[i,m]) se y[i,m]=1
-      con i in {1,...,N} e m in {1,...,M}.
-      Inoltre li normalizzo altrimenti devo aumentare i parametri tol o max_iter per far convergere il metodo.
-    '''
-
-    nm = n * m
-    omega0 = np.count_nonzero(Y)/nm
-    omega1 = (nm-np.count_nonzero(Y == 1))/nm
-    omegam1 = (nm - np.count_nonzero(Y == -1))/nm
-    # print(omega0,omega1,omegam1)
-
-    model = LogisticRegression(
-        # equivalente all'uso di l1_ratio=1 significa che usiamo penalizzazione Lasso
-        penalty='l1',
-        class_weight={0: omega0, 1: omega1, -1: omegam1},
-        # se i pesi non sommano a 1, cambia automaticamente il parametro C di penalizz.
-        solver='saga',
-        #  o 'liblinear' che è meno efficiente per grandi dataset ma più efficiente per piccoli dataset
-        #  eventualmente saga va bene anche per Ridge ed ElasticNet
-        multi_class='multinomial',
-        max_iter=params['max_iter'],
-        #  tol=0.0001,
-        C=reg_strength)   # regularization_strength è l'inverso di lambda coeff per la penalizzazione l1
-
-    model.fit(X, Y.ravel())
-
-    # Coefficienti del modello
-    alpha = model.coef_
-    # Coefficienti alpha relativi ai casi -1, 0 e 1 rispettivamente
-    alpha_minus_one = np.transpose(alpha[0].reshape(n, n))
-    alpha_zero = np.transpose(alpha[1].reshape(n, n))
-    alpha_one = np.transpose(alpha[2].reshape(n, n))
-
-    # Coefficienti beta
-    beta_uno = np.zeros(shape=(n, n), dtype='int8')
-    beta_zero = np.zeros(shape=(n, n), dtype='int8')
-    beta_meno_uno = np.zeros(shape=(n, n), dtype='int8')
-
-    """ Selezioniamo i valori positivi (in alternativa selezioniamo i valori
-    del range 30% più alto) """
-    coef_threshold = 0
-    beta_meno_uno[alpha_minus_one > coef_threshold] = 1
-    beta_zero[alpha_zero > coef_threshold] = 1
-    beta_uno[alpha_one > coef_threshold] = 1
-
-    '''
-    beta dev'essere -1 per beta_meno_uno = 1
-        e dev'essere 1 per beta_meno_uno = 0 and beta_uno = 1
-    beta = beta_uno - beta_meno_uno
-    beta = np.zeros(shape=(n, n))
-    '''
-    beta = np.zeros(shape=(n, n), dtype='int8')
-    beta[beta_meno_uno == 1] = -1
-    beta[np.logical_and(beta_meno_uno == 0, beta_uno == 1)] = 1
-
-    dout = {}
-    dout['beta'] = beta
-    dout['regularization_strength'] = reg_strength
-    # save data
-    np.save(fname_lasso, dout)
-
-
 def lasso(params):
     """Perform lasso regression.
 
@@ -219,39 +104,14 @@ def lasso(params):
     R = data['R']
     S = data['S']
 
-    #
-
-    from scipy.sparse import coo_matrix, block_diag
-
     n, m = S.shape   # number of neurons (N) and observations (M)
-    Y = R.reshape(-1, 1)  # response vector
+    y_vect = R.reshape(-1, 1)  # response vector
 
     # Definiamo la trasposta di S
-    ST = coo_matrix(np.transpose(S))
+    s_mat_transpose = np.transpose(S)
+    # define block diagonal matrix based on S
+    x_block_mat = block_diag([coo_matrix(s_mat_transpose) for i in range(n)])
 
-    # Definiamo X a partire da ST
-    # print('start: block matrices')
-    #  X = ST
-    #  for i in range(n-1):  # Si può evitare questo ciclo for??
-    #     X = block_diag(X, ST)
-    X = block_diag([coo_matrix(ST) for i in range(n)])
-
-    #   print('stop: block matrices')
-
-    '''
-    nota1
-    X=block_diag([ST for i in range(N)]) # una comprehensive list è più veloce
-    https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.block_diag.html
-    nota2
-    implementazione per matrici sparse
-    https://stackoverflow.com/questions/30895154/scipy-block-diag-of-a-list-of-matrices
-    https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.block_diag.html
-    '''
-
-    ############################################################################################################
-
-    # Importiamo libreria per Lasso Logistico
-    from sklearn.linear_model import LogisticRegression
 
     '''
     Definisco pesi \omega_{i,m}=\sum_{i,m} y[i,m] se y[i,m]=0 oppure \omega_{i,m}=\sum_{i,m} (1-y[i,m]) se y[i,m]=1
@@ -260,10 +120,10 @@ def lasso(params):
     '''
 
     nm = n * m
-    omega0 = np.count_nonzero(Y) / nm
-    omega1 = (nm - np.count_nonzero(Y == 1)) / nm
-    omegam1 = (nm - np.count_nonzero(Y == -1)) / nm
-    print('omega(0)=%g omega(-1)=%g omega(1)=%g' % (omega0, omega1, omegam1))
+    omega0 = np.count_nonzero(y_vect) / nm
+    omega1 = (nm - np.count_nonzero(y_vect == 1)) / nm
+    omegam1 = (nm - np.count_nonzero(y_vect == -1)) / nm
+    print('omega(0)=%g omega(1)=%g omega(-1)=%g' % (omega0, omega1, omegam1))
 
     model = LogisticRegression(
         # equivalente all'uso di l1_ratio=1 significa che usiamo penalizzazione Lasso
@@ -278,7 +138,7 @@ def lasso(params):
         #  tol=0.0001,
         C=reg_strength)   # regularization_strength è l'inverso di lambda coeff per la penalizzazione l1
 
-    model.fit(X, Y.ravel())
+    model.fit(x_block_mat, y_vect.ravel())
 
     # Coefficienti del modello
     alpha = model.coef_
@@ -291,6 +151,8 @@ def lasso(params):
     beta_uno = np.zeros(shape=(n, n), dtype='int8')
     beta_zero = np.zeros(shape=(n, n), dtype='int8')
     beta_meno_uno = np.zeros(shape=(n, n), dtype='int8')
+
+    ### <--- REFINE FROM HERE ..
 
     """ Selezioniamo i valori positivi (in alternativa selezioniamo i valori
     del range 30% più alto) """
@@ -308,6 +170,8 @@ def lasso(params):
     beta = np.zeros(shape=(n, n), dtype='int8')
     beta[beta_meno_uno == 1] = -1
     beta[np.logical_and(beta_meno_uno == 0, beta_uno == 1)] = 1
+
+    ### ---> .. TO HERE
 
     dout = {}
     dout['beta'] = beta
