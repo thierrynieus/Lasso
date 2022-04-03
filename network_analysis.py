@@ -1,6 +1,7 @@
 # network_analysis
 import numpy as np
 import pylab as plt
+import networkx as nx
 import network_util as nu
 
 '''
@@ -8,6 +9,8 @@ import network_util as nu
 > MFR, IFR
 > graph parameters ? networkx
  '''
+
+figsize=(5, 5)
 
 
 def plot_traces(fn_data, num_max=1e10, show_noise=True, delay=0):
@@ -60,22 +63,24 @@ def raster_plot(fn_data, binsz=20):
     ax1.set_xlabel('time (ms)', fontsize=14)
     ax1.set_ylabel('cell', fontsize=14, color='k')
     ax2.set_ylabel('istantaneous firing rate (Hz)', fontsize=14, color='r')
+    # save in the same folder!!!
 
 
-def mean_firing_rate(fn_data, twindow=5000, figsize=(5, 5)):
+def mean_firing_rate(fn_data, twindow=5000, col='k', label='', fignum=1):
     """Report mean firing rate."""
     data = nu.load_dict(fn_data)
     num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
-    plt.figure(figsize=figsize)
+    plt.figure(fignum, figsize=figsize)
     spk = []
     for k in range(num_neurons):
         tspk = data[k]['spikes_nrn']
         spk.append(1e3*len(tspk)/twindow)
-    plt.plot(spk, 'k-')
+    plt.plot(spk, linestyle='-', c=col, label=label)
     plt.xlabel('cell #', fontsize=16)
     plt.ylabel('mean firing rate (Hz)', fontsize=16)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
+    plt.legend(loc=0, fontsize=16)
 
 
 def remove_synchronous_spikes(fn_data, binsz=1, mfr_thresh=20, dt_thresh=20):
@@ -120,3 +125,49 @@ def remove_synchronous_spikes(fn_data, binsz=1, mfr_thresh=20, dt_thresh=20):
             tspk[idx] = -1
         data[k]['spikes_nrn'] = tspk[tspk > 0]
     return data
+
+
+def inter_connectivity(fn_data, nrn_patch, verbose=False):
+    """Report inter-connectivity of a list of neurons.
+
+    fn_data: filename of results with graph info
+    nrn_patch: neuron list to check for
+    """
+    d = np.load(fn_data, allow_pickle=1).item()
+    num_exc = d['params_neurons']['num_exc_neurons']
+    num_inh = d['params_neurons']['num_neurons'] - num_exc
+    exc_nrn = np.arange(num_exc)
+    inh_nrn = np.arange(num_exc, num_inh)
+    num_exc_patch = len(np.intersect1d(nrn_patch, exc_nrn))
+    num_inh_patch = len(np.intersect1d(nrn_patch, inh_nrn))
+    print('# exc neurons in the patch = %d' % num_exc_patch)
+    print('# inh neurons in the patch = %d' % num_inh_patch)
+    graph = nx.DiGraph(d['params_netw']['conn_mat'])
+    len_patch = len(nrn_patch)
+    # in_edges - patch
+    print('in edges')
+    count_in = 0
+    for nrn_in in nrn_patch:
+        nrn_from_graph = [edge[0]
+                          for edge in graph.in_edges(nrn_in)]
+        nrn_from_patch = np.intersect1d(nrn_from_graph, nrn_patch)
+        lun_nrn_from_patch = len(nrn_from_patch)
+        count_in += lun_nrn_from_patch
+        if verbose:
+            print('%d (%d)' % (lun_nrn_from_patch, len(nrn_from_graph)),
+                  end=' ')
+    print(' TOTAL %d ' % count_in)
+    # out_edges - patch
+    print('out edges')
+    count_out = 0
+    for nrn_out in nrn_patch:
+        nrn_out_graph = [edge[1]
+                         for edge in graph.out_edges(nrn_out)]
+        nrn_out_patch = np.intersect1d(nrn_out_graph, nrn_patch)
+        lun_out_from_patch = len(nrn_out_patch)
+        count_out += lun_out_from_patch
+        if verbose:
+            print('%d (%d)' % (lun_nrn_from_patch, len(nrn_out_graph)),
+                  end=' ')
+    print(' TOTAL %d ' % count_out)
+    print(count_in/len_patch, count_out/len_patch)

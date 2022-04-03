@@ -72,8 +72,7 @@ def save_config(params_syn, params_noise, params_neurons, params_netw):
 
 
 def load_config(count=0):
-    '''
-    '''
+    """Load configuration."""
     params_syn = load_json('params_syn.json', fpath_cfg, count)
     params_noise = load_json('params_noise.json', fpath_cfg, count)
     params_neurons = load_json('params_neurons.json', fpath_cfg, count)
@@ -83,7 +82,7 @@ def load_config(count=0):
 
 
 def create_conn_mat(params_neurons):
-    """This script works!"""
+    """Build a connectome without spatial information."""
     n = params_neurons['num_neurons']
     ne = params_neurons['num_exc_neurons']
     params_netw = {}
@@ -102,4 +101,41 @@ def create_conn_mat(params_neurons):
     if params_neurons['spatial_coordinates']:
         params_netw['x'] = np.random.rand(n)
         params_netw['y'] = np.random.rand(n)
+    return params_netw
+
+
+def create_conn_mat_spatial(params_neurons):
+    """Build a connectome with spatial information."""
+    n = params_neurons['num_neurons']
+    ne = params_neurons['num_exc_neurons']
+    params_netw = {}
+    params_netw['num_neurons'] = n
+    params_netw['exc'] = np.arange(ne)
+    params_netw['inh'] = np.arange(ne, n)
+    params_netw['conn_mat'] = []
+
+    params_neurons['spatial_coordinates'] = True
+    xrnd = np.random.rand(n)
+    yrnd = np.random.rand(n)
+    params_netw['x'] = xrnd
+    params_netw['y'] = yrnd
+    pos = np.zeros((n, 2))
+    pos[:, 0] = xrnd
+    pos[:, 1] = yrnd
+
+    if 'sigma' in params_neurons:
+        sigma = params_neurons['sigma']
+    else:
+        sigma = 0.25
+
+    # taken from utils.py Lonardoni et al. 2018
+    from scipy.spatial.distance import pdist, squareform
+    from scipy.stats import chi2
+    dist_mat = squareform(pdist(pos))
+    dist_mat = chi2(1).cdf(dist_mat / sigma)
+    dist_mat += np.eye(len(dist_mat)) * 10
+    prob_mat = np.random.random(dist_mat.shape)
+    edges = np.where(dist_mat < prob_mat)
+    for edge in np.array(edges).T:
+        params_netw['conn_mat'].append(tuple(edge))
     return params_netw

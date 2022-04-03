@@ -7,13 +7,16 @@ import os
 import pandas as pd
 
 from network_util import load_dict
+
 resultsfolder = '/home/tnieus/Projects/RESULTS/Lasso/'
 configfolder = '/home/tnieus/Projects/CODE/Lasso/config/'
+figsize = (10, 10)
 
 params_lasso = {'regularization_strength': 1, 'rel_path_results': 'test',
                 'fname_RSmat': 'RSmat_0014.npy',
                 'fname_lasso': 'RSmat_0014_lasso.npy',
-                'skip_existent': True, 'max_iter': 300}
+                'skip_existent': True, 'max_iter': 300, 'n_jobs': None,
+                'tol': 0.0001, 'solver': 'saga'}
 
 params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
                    'fname_lasso': 'RSmat_0015_lasso.npy',
@@ -24,7 +27,8 @@ params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
 params_roc = {'rel_path_results': 'test',
               'fname_conf_mat': 'RSmat_conf_mat.npy',
               'reg_vect': [0.0001, 0.001, 0.005, 0.0075, 0.01, 0.025, 0.05,
-                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55, 0.6]}
+                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55, 0.6, 0.65,
+                           0.7]}
 
 
 def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
@@ -75,15 +79,18 @@ def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
             # conn_mat[idx_in, 0] connections to neuron k
             idx_nz = np.where(mat_ext[nrn_in, :])[0]
             mat_int[k, idx_nz] = sign
-
-    np.save(os.path.join(resultsfolder, fn_out), {'R': mat_int, 'S': mat_ext})
+    dout = {'R': mat_int, 'S': mat_ext, 'time_trim': time_trim,
+            'dt_dis': dt_dis}
+    np.save(os.path.join(resultsfolder, fn_out), dout)
 
 
 def lasso(params):
-    """Perform lasso regression.
+    """Perform logistic regression with lasso penalization.
 
     load R and S matrices
     """
+    import time
+    t0 = time.time()
     # Inverso del coefficiente di regolarizzazione (lambda^{-1})
     reg_strength = params['regularization_strength']
 
@@ -130,15 +137,16 @@ def lasso(params):
         penalty='l1',
         class_weight={0: omega0, 1: omega1, -1: omegam1},
         # se i pesi non sommano a 1, cambia automaticamente il parametro C di penalizz.
-        solver='saga',
+        solver=params['solver'],
         #  o 'liblinear' che è meno efficiente per grandi dataset ma più efficiente per piccoli dataset
         #  eventualmente saga va bene anche per Ridge ed ElasticNet
         multi_class='multinomial',
         max_iter=params['max_iter'],
-        #  tol=0.0001,
+        n_jobs=params['n_jobs'],
+        tol=params['tol'],
         C=reg_strength)   # regularization_strength è l'inverso di lambda coeff per la penalizzazione l1
 
-    model.fit(x_block_mat, y_vect.ravel())
+    model.fit(x_block_mat, y_vect.ravel()) #  apply coo_matrix on y_vect ?
 
     # Coefficienti del modello
     alpha = model.coef_
@@ -176,6 +184,7 @@ def lasso(params):
     dout = {}
     dout['beta'] = beta
     dout['regularization_strength'] = reg_strength
+    dout['computation time (s)'] = time.time()-t0
     # save data
     np.save(fname_lasso, dout)
 
@@ -228,9 +237,6 @@ def confusion_matrix(params):
     tn_exc = nzero + tp_inh + count_ab['(-1,0)'] - count_ab['(0,-1)']
     tn_inh = nzero + tp_exc + count_ab['(1,0)'] - count_ab['(0,-1)']
 
-    #  tn_exc = tp_inh + tp_0 + count_ab['(0,-1)'] + count_ab['(-1,0)']
-    #  tn_inh = tp_exc + tp_0 + count_ab['(0,1)'] + count_ab['(1,0)']
-
     #
     tp = tp_exc + tp_inh    # OK tp_1 + tp_-1
     fp = count_ab['(0,1)'] + count_ab['(0,-1)']
@@ -273,8 +279,7 @@ def ratio(a, b):
 
 
 def plot_roc(params):
-    '''
-    '''
+    """Plot Receiver Operative Curve."""
     # sensitivity
     sensitivity = []
     sensitivity_exc = []
@@ -283,7 +288,6 @@ def plot_roc(params):
     specificity = []
     specificity_exc = []
     specificity_inh = []
-
     #
     for reg in params['reg_vect']:
         fname_lasso = os.path.join(resultsfolder, params['rel_path_results'],
@@ -313,7 +317,6 @@ def plot_roc(params):
     oneminus_specificity_inh = 1-np.array(specificity_inh)
     plt.plot(oneminus_specificity_inh, sensitivity_inh, 'bo--', markersize=10,
              label='inhibitory')
-
     # decorate
     plt.xlabel('false positive rate', fontsize=16)
     plt.ylabel('true positive rate', fontsize=16)
@@ -321,10 +324,66 @@ def plot_roc(params):
     plt.yticks(fontsize=14)
     plt.legend(fontsize=14)
     plt.tight_layout(pad=1)
-    plt.savefig('plot_ROC.png')
+
+    fname_png = os.path.join(resultsfolder, params['rel_path_results'],
+                             'plot_ROC.png')
+    plt.savefig(fname_png)
 
 
-def run_all(rel_path_config='0000', rel_path_results=''):
+def plot_matthew_vs_regularization(params_roc, label='', lw=2, fignum=1):
+    """Plot Matthew coefficient versus regularization.
+
+    params_roc
+
+    """
+    def copy_data(df, dtype='all'):
+        str_add = ''  # default
+        if dtype == 'exc':
+            str_add = '_exc'
+        if dtype == 'inh':
+            str_add = '_inh'
+        lun = len(df)
+        conf_mat = np.zeros((lun, 4), dtype='int')
+        conf_mat[:, 0] = df['tp%s' % str_add].to_numpy()
+        conf_mat[:, 1] = df['fp%s' % str_add].to_numpy()
+        conf_mat[:, 2] = df['tn%s' % str_add].to_numpy()
+        conf_mat[:, 3] = df['fn%s' % str_add].to_numpy()
+        return conf_mat
+
+    fname_lasso = os.path.join(resultsfolder, params_roc['rel_path_results'],
+                               'confusion_mat.csv')
+    df = pd.read_csv(fname_lasso)
+    # plot
+    plt.figure(fignum, figsize=figsize)
+
+    # all
+    mc = matthews_coeff(copy_data(df, 'all'))
+    plt.plot(df['regularization_strength'], mc, 'ks-', markersize=10,
+             label='all %s' % label, lw=lw)
+
+    # exc
+    mc = matthews_coeff(copy_data(df, 'exc'))
+    plt.plot(df['regularization_strength'], mc, 'ro--', markersize=10,
+             label='excitatory %s' % label, lw=lw)
+    # inh
+    mc = matthews_coeff(copy_data(df, 'inh'))
+    plt.plot(df['regularization_strength'], mc, 'bo--', markersize=10,
+             label='inhibitory %s' % label, lw=lw)
+    plt.legend(loc=0, fontsize=14)
+    #  decorate
+    plt.xlabel('regularization strength', fontsize=16)
+    plt.ylabel('Matthew coefficient', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.legend(fontsize=14)
+    plt.tight_layout(pad=1)
+    fname_png = os.path.join(resultsfolder, params_roc['rel_path_results'],
+                             'plot_Matthew.png')
+    plt.savefig(fname_png)
+
+
+def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
+            dt_dis=1):
     """Perform all steps.
 
     npte: rel_path_config potrebbe essere letto dal file di output ..
@@ -347,7 +406,8 @@ def run_all(rel_path_config='0000', rel_path_results=''):
     # step 0 R,S mat
     calc_mat_processes('%s/output.npy' % (rel_path_results),
                        '%s/params_netw.npy' % rel_path_config,
-                       '%s/RSmat.npy' % (rel_path_results))
+                       '%s/RSmat.npy' % (rel_path_results),
+                       time_trim=time_trim, dt_dis=dt_dis)
     keys = ['regularization_strength', 'tp', 'tn', 'fp', 'fn', 'tp_exc',
             'tn_exc', 'fp_exc', 'fn_exc', 'tp_inh', 'tn_inh', 'fp_inh',
             'fn_inh']
@@ -389,8 +449,11 @@ def run_all(rel_path_config='0000', rel_path_results=''):
 def subsample_output(fn_out='', num_nrn_sample=20):
     """Subsample existing results.
 
+    fn_out: path to the output.npy file
+    num_nrn_sample: number of neurons to sample
+
     notes:
-        num_nrn_sample consider to distinguish exc/inh
+        consider to distinguish the selection based on #exc/#inh neurons
     """
     d = np.load(fn_out, allow_pickle=1).item()
     num_neurons = d['params_neurons']['num_neurons']
@@ -434,12 +497,14 @@ def matthews_coeff(conf_mat):
 
     reference:
     """
+    mcc = np.zeros(conf_mat.shape[0])
     tp = conf_mat[:, 0]
     fp = conf_mat[:, 1]
     tn = conf_mat[:, 2]
     fn = conf_mat[:, 3]
     den = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
     idx = np.where(den == 0)[0]
-    mcc = (tp * tn - fp * fn) / np.sqrt(den)
     mcc[idx] = -1
+    idx = np.where(den)[0]
+    mcc[idx] = (tp[idx] * tn[idx] - fp[idx] * fn[idx]) / np.sqrt(den[idx])
     return mcc
