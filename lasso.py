@@ -508,3 +508,9 @@ def matthews_coeff(conf_mat):
     idx = np.where(den)[0]
     mcc[idx] = (tp[idx] * tn[idx] - fp[idx] * fn[idx]) / np.sqrt(den[idx])
     return mcc
+
+
+"""
+def area_under_curve(uncon_val, con_val, nsteps=1000):
+        add (FPR,TPR)=(1,1)
+"""
