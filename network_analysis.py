@@ -66,21 +66,23 @@ def raster_plot(fn_data, binsz=20):
     # save in the same folder!!!
 
 
-def mean_firing_rate(fn_data, twindow=5000, col='k', label='', fignum=1):
+def mean_firing_rate(fn_data, time_trim=(100, 5000)):
     """Report mean firing rate."""
     data = nu.load_dict(fn_data)
-    num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
-    plt.figure(fignum, figsize=figsize)
-    spk = []
+    #
+    if 'num_neurons' in data:
+        num_neurons = data['num_neurons']
+    else:
+        # in old fn_data num_neurons was not available!
+        num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
+    mfr = []
+    twindow = time_trim[1] - time_trim[0]
+    print('time window = %g ms' % twindow)
     for k in range(num_neurons):
         tspk = data[k]['spikes_nrn']
-        spk.append(1e3*len(tspk)/twindow)
-    plt.plot(spk, linestyle='-', c=col, label=label)
-    plt.xlabel('cell #', fontsize=16)
-    plt.ylabel('mean firing rate (Hz)', fontsize=16)
-    plt.xticks(fontsize=14)
-    plt.yticks(fontsize=14)
-    plt.legend(loc=0, fontsize=16)
+        tspk = tspk[(tspk > time_trim[0]) & (tspk < time_trim[1])]
+        mfr.append(1e3*len(tspk)/twindow)
+    return mfr
 
 
 def remove_synchronous_spikes(fn_data, binsz=1, mfr_thresh=20, dt_thresh=20):
@@ -91,7 +93,7 @@ def remove_synchronous_spikes(fn_data, binsz=1, mfr_thresh=20, dt_thresh=20):
     mfr_threshold (Hz):
     """
     data = nu.load_dict(fn_data)
-    # need to add a key with number of neurons
+    #
     if 'num_neurons' in data:
         num_neurons = data['num_neurons']
     else:
