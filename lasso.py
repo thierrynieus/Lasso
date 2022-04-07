@@ -13,26 +13,30 @@ configfolder = '/home/tnieus/Projects/CODE/Lasso/config/'
 figsize = (10, 10)
 
 params_lasso = {'regularization_strength': 1, 'rel_path_results': 'test',
-                'fname_RSmat': 'RSmat_0014.npy',
-                'fname_lasso': 'RSmat_0014_lasso.npy',
-                'skip_existent': True, 'max_iter': 300, 'n_jobs': None,
-                'tol': 0.0001, 'solver': 'saga'}
+                'fname_RSmat': 'RSmat.npy',
+                'fname_lasso': 'RSmat_lasso.npy',
+                'skip_existent': True, 'max_iter': 3000, 'n_jobs': None,
+                'tol': 0.0001, 'solver': 'saga', 'warm_start': False}
+
+"""
+'solver': 'liblinear' good for small datasets, 'saga' for big datasets, 'saga'
+used also for Ridge and ElasticNet
+https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
+"""
 
 params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
-                   'fname_lasso': 'RSmat_0015_lasso.npy',
+                   'fname_lasso': 'RSmat_lasso.npy',
                    'fname_netw': 'params_netw.npy',
                    'rel_path_config': '20nrn_16exc_4inh/0000',
-                   'fname_conf_mat': 'RSmat_0015_conf_mat.npy'}
+                   'fname_conf_mat': 'RSmat_conf_mat.npy'}
 
 params_roc = {'rel_path_results': 'test',
               'fname_conf_mat': 'RSmat_conf_mat.npy',
               'reg_vect': [0.0001, 0.001, 0.005, 0.0075, 0.01, 0.025, 0.05,
-                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55, 0.6, 0.65,
-                           0.7]}
+                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5]}
 
 
-def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
-                       dt_dis=1):
+def calc_mat_processes(fn_data, fn_out, time_trim=(100, 5000), dt_dis=1):
     """Compute the matrices of the internal (S) and external (R) events.
 
     data[k]['spikes_nrn']
@@ -49,10 +53,15 @@ def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
 
     print(fn_data)
     data = load_dict(os.path.join(resultsfolder, fn_data))
-    config = load_dict(os.path.join(configfolder, fn_cfg))
+    # config = load_dict(os.path.join(configfolder, fn_cfg))
 
-    conn_mat = np.array(config['conn_mat'])
-    num_neurons = config['num_neurons']
+    conn_mat = np.array(data['params_netw']['conn_mat'])
+    if 'num_neurons' in data:
+        num_neurons = data['num_neurons']
+    else:
+        # in old fn_data num_neurons was not available!
+        num_neurons = len([x for x in data if isinstance(x, int)])
+
     tmin, tmax = time_trim
     ntime = int((tmax - tmin) / dt_dis)
     mat_ext = np.zeros((num_neurons, ntime), dtype=np.int8)
@@ -75,7 +84,7 @@ def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
         idx_in_conn = np.where(conn_mat[:, 1] == k)[0]
         for idx_in in idx_in_conn:
             nrn_in = conn_mat[idx_in, 0]  # nrn_in to k
-            sign = 1 if nrn_in in config['exc'] else -1
+            sign = 1 if nrn_in in data['params_netw']['exc'] else -1
             # conn_mat[idx_in, 0] connections to neuron k
             idx_nz = np.where(mat_ext[nrn_in, :])[0]
             mat_int[k, idx_nz] = sign
@@ -87,7 +96,8 @@ def calc_mat_processes(fn_data, fn_cfg, fn_out, time_trim=(100, 5000),
 def lasso(params):
     """Perform logistic regression with lasso penalization.
 
-    load R and S matrices
+    note:
+        add possibility to load a model !!!
     """
     import time
     t0 = time.time()
@@ -114,17 +124,9 @@ def lasso(params):
     n, m = S.shape   # number of neurons (N) and observations (M)
     y_vect = R.reshape(-1, 1)  # response vector
 
-    # Definiamo la trasposta di S
     s_mat_transpose = np.transpose(S)
     # define block diagonal matrix based on S
     x_block_mat = block_diag([coo_matrix(s_mat_transpose) for i in range(n)])
-
-
-    '''
-    Definisco pesi \omega_{i,m}=\sum_{i,m} y[i,m] se y[i,m]=0 oppure \omega_{i,m}=\sum_{i,m} (1-y[i,m]) se y[i,m]=1
-      con i in {1,...,N} e m in {1,...,M}.
-      Inoltre li normalizzo altrimenti devo aumentare i parametri tol o max_iter per far convergere il metodo.
-    '''
 
     nm = n * m
     omega0 = np.count_nonzero(y_vect) / nm
@@ -133,24 +135,30 @@ def lasso(params):
     print('omega(0)=%g omega(1)=%g omega(-1)=%g' % (omega0, omega1, omegam1))
 
     model = LogisticRegression(
-        # equivalente all'uso di l1_ratio=1 significa che usiamo penalizzazione Lasso
-        penalty='l1',
+        penalty='l1',  # equal to l1_ratio=1
         class_weight={0: omega0, 1: omega1, -1: omegam1},
-        # se i pesi non sommano a 1, cambia automaticamente il parametro C di penalizz.
+        # if sum weights<>1 change penalization parameter C
         solver=params['solver'],
-        #  o 'liblinear' che è meno efficiente per grandi dataset ma più efficiente per piccoli dataset
-        #  eventualmente saga va bene anche per Ridge ed ElasticNet
         multi_class='multinomial',
         max_iter=params['max_iter'],
         n_jobs=params['n_jobs'],
         tol=params['tol'],
-        C=reg_strength)   # regularization_strength è l'inverso di lambda coeff per la penalizzazione l1
+        warm_start=params['warm_start'],
+        C=reg_strength)  # reg_strength is the inverse of lambda
 
-    model.fit(x_block_mat, y_vect.ravel()) #  apply coo_matrix on y_vect ?
+    model.fit(x_block_mat, y_vect.ravel())  # apply coo_matrix on y_vect ?
+    """
+    # access as a dict
+    dx = model.__dict__
+    dx.keys()
+    """
+    #  save the model
+    fname_model = os.path.join(fpath_out, 'model.npy')
+    np.save(fname_model, model)
 
-    # Coefficienti del modello
+    # coefficients of the model
     alpha = model.coef_
-    # Coefficienti alpha relativi ai casi -1, 0 e 1 rispettivamente
+    #  alpha relative to the classes -1, 0, 1
     alpha_minus_one = np.transpose(alpha[0].reshape(n, n))
     alpha_zero = np.transpose(alpha[1].reshape(n, n))
     alpha_one = np.transpose(alpha[2].reshape(n, n))
@@ -160,7 +168,7 @@ def lasso(params):
     beta_zero = np.zeros(shape=(n, n), dtype='int8')
     beta_meno_uno = np.zeros(shape=(n, n), dtype='int8')
 
-    ### <--- REFINE FROM HERE ..
+    #  <--- REFINE FROM HERE ..
 
     """ Selezioniamo i valori positivi (in alternativa selezioniamo i valori
     del range 30% più alto) """
@@ -193,6 +201,7 @@ def confusion_matrix(params):
     """Build confusion matrix."""
     fname_netw = os.path.join(configfolder, params['rel_path_config'],
                               params['fname_netw'])
+
     folder_reg = 'reg_%g' % params['regularization_strength']
     fname_lasso = os.path.join(resultsfolder, params['rel_path_results'],
                                folder_reg, params['fname_lasso'])
@@ -231,14 +240,15 @@ def confusion_matrix(params):
         ninh += np.count_nonzero(src == nrn)
     nzero = n**2 - nexc - ninh
 
-    tp_exc = nexc - fn_exc  # ok
-    tp_inh = ninh - fn_inh  # ok
+    tp_exc = nexc - fn_exc
+    tp_inh = ninh - fn_inh
 
-    tn_exc = nzero + tp_inh + count_ab['(-1,0)'] - count_ab['(0,-1)']
+    # tn_exc = nzero + tp_inh + count_ab['(-1,0)'] - count_ab['(0,-1)']
+    tn_exc = nzero + tp_inh + count_ab['(-1,0)'] - count_ab['(0,1)']
     tn_inh = nzero + tp_exc + count_ab['(1,0)'] - count_ab['(0,-1)']
 
     #
-    tp = tp_exc + tp_inh    # OK tp_1 + tp_-1
+    tp = tp_exc + tp_inh    # tp is just the sum of exc and inh tp
     fp = count_ab['(0,1)'] + count_ab['(0,-1)']
     fn = count_ab['(1,0)'] + count_ab['(-1,0)']
     tn = count_ab['(0,0)']
@@ -271,15 +281,11 @@ def confusion_matrix(params):
     return dout
 
 
-def ratio(a, b):
-    '''
-    '''
-    s = a + b
-    return a/s if s else 1.
-
-
 def plot_roc(params):
     """Plot Receiver Operative Curve."""
+    def ratio(a, b):
+        s = a + b
+        return a/s if s else 1.
     # sensitivity
     sensitivity = []
     sensitivity_exc = []
@@ -405,7 +411,6 @@ def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
 
     # step 0 R,S mat
     calc_mat_processes('%s/output.npy' % (rel_path_results),
-                       '%s/params_netw.npy' % rel_path_config,
                        '%s/RSmat.npy' % (rel_path_results),
                        time_trim=time_trim, dt_dis=dt_dis)
     keys = ['regularization_strength', 'tp', 'tn', 'fp', 'fn', 'tp_exc',
@@ -510,7 +515,35 @@ def matthews_coeff(conf_mat):
     return mcc
 
 
-"""
-def area_under_curve(uncon_val, con_val, nsteps=1000):
-        add (FPR,TPR)=(1,1)
-"""
+def area_under_curve(fname_conf_mat):
+    """Compute area under curve."""
+    df = pd.read_csv(fname_conf_mat)
+    n = len(df)
+    roc = {}
+    roc['all'] = np.zeros((n+1, 2))
+    roc['exc'] = np.zeros((n+1, 2))
+    roc['inh'] = np.zeros((n+1, 2))
+    auc = {}
+    for syn_type in ['all', 'exc', 'inh']:
+        roc[syn_type][n, :] = 1  # ensures the ROC goes to (1,1)
+        if syn_type == 'all':
+            key_add = ''
+        else:
+            key_add = '_%s' % syn_type
+        #
+        tp = df['tp%s' % key_add].to_numpy()
+        fp = df['fp%s' % key_add].to_numpy()
+        tn = df['tn%s' % key_add].to_numpy()
+        fn = df['fn%s' % key_add].to_numpy()
+
+        roc[syn_type][:n, 0] = fp / (fp + tn)  # false positive rate
+        roc[syn_type][:n, 1] = tp / (tp + fn)  # true positive rate
+
+        # sort wrt to false positive rate
+        idx_sort = np.argsort(roc[syn_type][:n, 0])
+        roc[syn_type][:n, 0] = roc[syn_type][:n, 0][idx_sort]
+        roc[syn_type][:n, 1] = roc[syn_type][:n, 1][idx_sort]
+
+        # numerical integration
+        auc[syn_type] = np.trapz(roc[syn_type][:, 1], roc[syn_type][:, 0])
+    return auc
