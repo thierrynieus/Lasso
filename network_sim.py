@@ -108,5 +108,4 @@ dout['params_noise'] = params_noise
 dout['params_neurons'] = params_neurons
 dout['params_netw'] = params_netw
 
-#  nu.save_npy(dout, fpath_results, 'output_%s.npy')
 nu.save_npy(dout, fpath_results, 'output.npy')

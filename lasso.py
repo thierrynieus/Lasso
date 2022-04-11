@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_matrix, block_diag
 from sklearn.linear_model import LogisticRegression
+#  sklearn ver 1.0.2. on Indaco '0.21.3'
 
 import os
 import pandas as pd
@@ -32,8 +33,7 @@ params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
 
 params_roc = {'rel_path_results': 'test',
               'fname_conf_mat': 'RSmat_conf_mat.npy',
-              'reg_vect': [0.0001, 0.001, 0.005, 0.0075, 0.01, 0.025, 0.05,
-                           0.075, 0.1, 0.2, 0.3, 0.4, 0.5]}
+              'reg_vect': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]}
 
 
 def calc_mat_processes(fn_data, fn_out, time_trim=(100, 5000), dt_dis=1):

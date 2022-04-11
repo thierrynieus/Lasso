@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import json
-
+import glob
 import pylab as plt
 plt.ion()
 
@@ -10,8 +10,7 @@ fpath_cfg = '/home/tnieus/Projects/CODE/Lasso/config'
 
 
 def snum(num, lun_str=4):
-    '''
-    '''
+    """Generate a fixed-lenght string from a number."""
     str_num = '%d' % num
     while len(str_num) < lun_str:
         str_num = '0' + str_num
@@ -19,10 +18,11 @@ def snum(num, lun_str=4):
 
 
 def save_json(data, fpath, fname):
-    '''
-    '''
+    """Save a json file.
+
+    comment: unused
+    """
     count = 0
-    #while os.path.exists(os.path.join(fpath_cfg, fname % snum(count))):
     while os.path.exists(os.path.join(fpath, snum(count))):
         count += 1
     print(count)
@@ -34,8 +34,10 @@ def save_json(data, fpath, fname):
 
 
 def load_json(fname, fpath, count):
-    '''
-    '''
+    """Load a json file.
+
+    comment: unused
+    """
     fn_json = os.path.join(fpath, snum(count), fname)
     f = open(fn_json)
     data = json.load(f)
@@ -43,28 +45,30 @@ def load_json(fname, fpath, count):
 
 
 def save_npy(data, fpath, fname):
-    '''
-    '''
+    """Save file and prevent overwriting."""
     count = 0
     #  while os.path.exists(os.path.join(fpath, fname % snum(count))):
     while os.path.isdir(os.path.join(fpath, snum(count))):
         count += 1
     print(count)
     os.makedirs(os.path.join(fpath, snum(count)))
-    #  fn_npy = os.path.join(fpath, fname % snum(count))
     fn_npy = os.path.join(fpath, snum(count), fname)
     np.save(fn_npy, data)
 
 
 def load_dict(fname_py):
-    '''
-    '''
+    """Load a dictionary from a file.
+
+    comment: a simple and less cumbersome way to load it
+    """
     return np.load(fname_py, allow_pickle=1).item()
 
 
 def save_config(params_syn, params_noise, params_neurons, params_netw):
-    '''
-    '''
+    """Save configuration.
+
+    comment: unused
+    """
     save_json(params_syn, fpath_cfg, 'params_syn.json')
     save_json(params_noise, fpath_cfg, 'params_noise.json')
     save_json(params_neurons, fpath_cfg, 'params_neurons.json')
@@ -72,7 +76,10 @@ def save_config(params_syn, params_noise, params_neurons, params_netw):
 
 
 def load_config(count=0):
-    """Load configuration."""
+    """Load configuration.
+
+    comment: unused
+    """
     params_syn = load_json('params_syn.json', fpath_cfg, count)
     params_noise = load_json('params_noise.json', fpath_cfg, count)
     params_neurons = load_json('params_neurons.json', fpath_cfg, count)
@@ -104,8 +111,13 @@ def create_conn_mat(params_neurons):
     return params_netw
 
 
-def create_conn_mat_spatial(params_neurons):
-    """Build a connectome with spatial information."""
+def create_conn_mat_spatial(params_neurons, pos=None):
+    """Build a connectome with spatial information.
+
+    comment:
+        - possibile additional argument (x,y) (default empty)
+        - additional prefixed links (default empty)
+    """
     n = params_neurons['num_neurons']
     ne = params_neurons['num_exc_neurons']
     params_netw = {}
@@ -115,13 +127,10 @@ def create_conn_mat_spatial(params_neurons):
     params_netw['conn_mat'] = []
 
     params_neurons['spatial_coordinates'] = True
-    xrnd = np.random.rand(n)
-    yrnd = np.random.rand(n)
-    params_netw['x'] = xrnd
-    params_netw['y'] = yrnd
-    pos = np.zeros((n, 2))
-    pos[:, 0] = xrnd
-    pos[:, 1] = yrnd
+    if pos is None:
+        pos = np.random.rand((n, 2))
+    params_netw['x'] = pos[:, 0]
+    params_netw['y'] = pos[:, 1]
 
     if 'sigma' in params_neurons:
         sigma = params_neurons['sigma']
@@ -139,3 +148,11 @@ def create_conn_mat_spatial(params_neurons):
     for edge in np.array(edges).T:
         params_netw['conn_mat'].append(tuple(edge))
     return params_netw
+
+
+def get_regularization_factor(fpath):
+    """Get the analyzed regularization coefficients."""
+    fn_search = os.path.join(fpath, 'reg_*')
+    fn_lst = glob.glob(fn_search, recursive=True)
+    reg_lst = [float(fn.split('/')[-1].replace('reg_', '')) for fn in fn_lst]
+    return np.sort(reg_lst)
