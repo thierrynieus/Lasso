@@ -5,18 +5,24 @@ import fnmatch
 
 import pandas as pd
 
-sTIME='08:00:00' 
+sTIME='8:00:00' 
 
 home_laptop = '/home/tnieus/Projects/CODE/Lasso/'         # path to the scripts of laptop 
 home_cluster = '/gpfs/home/users/thierry.nieus/lasso/'    # path to the home of cluster 
 
-fpath_rel_config = '100nrn_80exc_20inh_spatial/0001'
-fpath_rel_results = '100nrn_80exc_20inh_spatial/0001'
+#fpath_rel_config = '100nrn_80exc_20inh_spatial/0001'
+#fpath_rel_results = '100nrn_80exc_20inh_spatial/0001'
+#fpathPYSLURM_local = '100nrn_80exc_20inh_spatial/0001'
 
-fpathPYSLURM_local = '100nrn_80exc_20inh_spatial/0001'
+fpath_rel_results = '100nrn_80exc_20inh_spatial/0002'
+fpathPYSLURM_local = '100nrn_80exc_20inh_spatial/0002'
+
 
 account='cerebellum'
 ram_memory=8000 #30000
+
+tbegin = 5000
+tend = 50000
 
 def write_out(reg, count, fpathPYSLURM):
     '''
@@ -35,9 +41,8 @@ def write_out(reg, count, fpathPYSLURM):
     f.write('sys.path.append(os.getcwd())\n')
     f.write('exec(open(\'lasso.py\').read())\n')      
     f.write('resultsfolder = \'/gpfs/home/users/thierry.nieus/lasso/results/\' \n')
-    f.write('configfolder = \'/gpfs/home/users/thierry.nieus/lasso/config/\' \n')          
     f.write('params_roc[\'reg_vect\'] = [%g]\n' % reg)       
-    f.write('run_all(\'%s\', \'%s\') \n' % (fpath_rel_config, fpath_rel_results))    
+    f.write('run_all(\'%s\',(%d,%d)) \n' % (fpath_rel_results, tbegin, tend))    
     f.close()
  
     # SLURM file to execute
@@ -48,7 +53,7 @@ def write_out(reg, count, fpathPYSLURM):
     f.write('#!/bin/bash \n')
     f.write('#SBATCH -o %s/%s.%s.out  \n' % (fname_out, '%j', '%N'))     
     f.write('#SBATCH -D %s/%s  \n' % (home_cluster, fpathPYSLURM))
-    f.write('#SBATCH -J PCIev_V2  \n')
+    f.write('#SBATCH -J Lasso  \n')
     f.write('#SBATCH --get-user-env  \n')
     f.write('#SBATCH -p light\n')
     f.write('#SBATCH --nodes=1\n')

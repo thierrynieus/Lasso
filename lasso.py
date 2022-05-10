@@ -2,10 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_matrix, block_diag
 from sklearn.linear_model import LogisticRegression
+import network_util as nu
 #  sklearn ver 1.0.2. on Indaco '0.21.3'
 
 import os
 import pandas as pd
+import glob
 
 from network_util import load_dict
 
@@ -51,9 +53,13 @@ def calc_mat_processes(fn_data, fn_out, time_trim=(100, 5000), dt_dis=1):
         spk1 = spk1[spk1 > tmin] - tmin
         return np.trunc(spk1 / dt_dis).astype(int)
 
+    fname_out = os.path.join(resultsfolder, fn_out)
+    if os.path.exists(fname_out):
+        print('%s already exists, so skip!' % fname_out)
+        return
+
     print(fn_data)
     data = load_dict(os.path.join(resultsfolder, fn_data))
-    # config = load_dict(os.path.join(configfolder, fn_cfg))
 
     conn_mat = np.array(data['params_netw']['conn_mat'])
     if 'num_neurons' in data:
@@ -82,6 +88,8 @@ def calc_mat_processes(fn_data, fn_out, time_trim=(100, 5000), dt_dis=1):
         mat_int[k, idx] = 1
         #  all inputs to neuron k
         idx_in_conn = np.where(conn_mat[:, 1] == k)[0]
+        print('neuron %d, # noise events %d # network events %d' % (k,
+              len(idx), len(idx_in_conn)))
         for idx_in in idx_in_conn:
             nrn_in = conn_mat[idx_in, 0]  # nrn_in to k
             sign = 1 if nrn_in in data['params_netw']['exc'] else -1
@@ -90,7 +98,7 @@ def calc_mat_processes(fn_data, fn_out, time_trim=(100, 5000), dt_dis=1):
             mat_int[k, idx_nz] = sign
     dout = {'R': mat_int, 'S': mat_ext, 'time_trim': time_trim,
             'dt_dis': dt_dis}
-    np.save(os.path.join(resultsfolder, fn_out), dout)
+    np.save(fname_out, dout)
 
 
 def lasso(params):
@@ -112,6 +120,7 @@ def lasso(params):
     fname_lasso = os.path.join(fpath_out, params['fname_lasso'])
     # skip the analysis if skip_existent is TRUE and file already exists
     if os.path.isfile(fname_lasso) & params['skip_existent']:
+        print('%s already exists!' % fname_lasso)
         return None
 
     # load data
@@ -199,13 +208,13 @@ def lasso(params):
 
 def confusion_matrix(params):
     """Build confusion matrix."""
-    fname_netw = os.path.join(configfolder, params['rel_path_config'],
-                              params['fname_netw'])
+    fn_out = os.path.join(resultsfolder, params['rel_path_results'],
+                          'output.npy')
+    data_netw = nu.load_dict(fn_out)['params_netw']
 
     folder_reg = 'reg_%g' % params['regularization_strength']
     fname_lasso = os.path.join(resultsfolder, params['rel_path_results'],
                                folder_reg, params['fname_lasso'])
-    data_netw = np.load(fname_netw, allow_pickle=1).item()
     data_lasso = np.load(fname_lasso, allow_pickle=1).item()
 
     # build adjancency matrix
@@ -275,53 +284,26 @@ def confusion_matrix(params):
     fname_conf_mat = os.path.join(resultsfolder, params['rel_path_results'],
                                   folder_reg,
                                   params['fname_conf_mat'])
-
     np.save(fname_conf_mat, dout)
-
     return dout
 
 
-def plot_roc(params):
+def plot_roc(fn_csv):
     """Plot Receiver Operative Curve."""
-    def ratio(a, b):
-        s = a + b
-        return a/s if s else 1.
-    # sensitivity
-    sensitivity = []
-    sensitivity_exc = []
-    sensitivity_inh = []
-    # specificity
-    specificity = []
-    specificity_exc = []
-    specificity_inh = []
-    #
-    for reg in params['reg_vect']:
-        fname_lasso = os.path.join(resultsfolder, params['rel_path_results'],
-                                   'reg_%g' % reg, params['fname_conf_mat'])
-        d = np.load(fname_lasso, allow_pickle=1).item()
-        # all
-        sensitivity.append(ratio(d['tp'], d['fn']))
-        specificity.append(ratio(d['tn'], d['fp']))
-        print(reg, 1-specificity[-1], sensitivity[-1])
-        # exc
-        sensitivity_exc.append(ratio(d['tp_exc'], d['fn_exc']))
-        specificity_exc.append(ratio(d['tn_exc'], d['fp_exc']))
-        # inh
-        sensitivity_inh.append(ratio(d['tp_inh'], d['fn_inh']))
-        specificity_inh.append(ratio(d['tn_inh'], d['fp_inh']))
-
+    df = pd.read_csv(fn_csv)
+    sens, spec = {}, {}
+    for syn in ['exc', 'inh', 'all']:
+        sens[syn], spec[syn] = sens_spec_coeff(select_conf_mat(df, syn))
+    # plot
     plt.figure(figsize=(6, 6))
     # all
-    oneminus_specificity = 1-np.array(specificity)
-    plt.plot(oneminus_specificity, sensitivity, 'ks-', markersize=10,
-             label='all', lw=2)
+    plt.plot(1-spec['all'], sens['all'], 'ks-', markersize=10, label='all',
+             lw=2)
     # exc
-    oneminus_specificity_exc = 1-np.array(specificity_exc)
-    plt.plot(oneminus_specificity_exc, sensitivity_exc, 'ro--', markersize=10,
+    plt.plot(1-spec['exc'], sens['exc'], 'ro--', markersize=10,
              label='excitatory')
     # inh
-    oneminus_specificity_inh = 1-np.array(specificity_inh)
-    plt.plot(oneminus_specificity_inh, sensitivity_inh, 'bo--', markersize=10,
+    plt.plot(1-spec['inh'], sens['inh'], 'bo--', markersize=10,
              label='inhibitory')
     # decorate
     plt.xlabel('false positive rate', fontsize=16)
@@ -330,51 +312,27 @@ def plot_roc(params):
     plt.yticks(fontsize=14)
     plt.legend(fontsize=14)
     plt.tight_layout(pad=1)
-
-    fname_png = os.path.join(resultsfolder, params['rel_path_results'],
-                             'plot_ROC.png')
+    fname_png = os.path.join(os.path.dirname(fn_csv), 'plot_ROC.png')
     plt.savefig(fname_png)
 
 
-def plot_matthew_vs_regularization(params_roc, label='', lw=2, fignum=1):
-    """Plot Matthew coefficient versus regularization.
-
-    params_roc
-
-    """
-    def copy_data(df, dtype='all'):
-        str_add = ''  # default
-        if dtype == 'exc':
-            str_add = '_exc'
-        if dtype == 'inh':
-            str_add = '_inh'
-        lun = len(df)
-        conf_mat = np.zeros((lun, 4), dtype='int')
-        conf_mat[:, 0] = df['tp%s' % str_add].to_numpy()
-        conf_mat[:, 1] = df['fp%s' % str_add].to_numpy()
-        conf_mat[:, 2] = df['tn%s' % str_add].to_numpy()
-        conf_mat[:, 3] = df['fn%s' % str_add].to_numpy()
-        return conf_mat
-
-    fname_lasso = os.path.join(resultsfolder, params_roc['rel_path_results'],
-                               'confusion_mat.csv')
-    df = pd.read_csv(fname_lasso)
+def plot_matthew(fn_csv):
+    """Plot Matthew coefficient versus regularization coefficient."""
+    df = pd.read_csv(fn_csv)
     # plot
-    plt.figure(fignum, figsize=figsize)
-
+    plt.figure(figsize=(6, 6))
     # all
-    mc = matthews_coeff(copy_data(df, 'all'))
+    mc = matthew_coeff(select_conf_mat(df, 'all'))
     plt.plot(df['regularization_strength'], mc, 'ks-', markersize=10,
-             label='all %s' % label, lw=lw)
-
+             label='all')
     # exc
-    mc = matthews_coeff(copy_data(df, 'exc'))
+    mc = matthew_coeff(select_conf_mat(df, 'exc'))
     plt.plot(df['regularization_strength'], mc, 'ro--', markersize=10,
-             label='excitatory %s' % label, lw=lw)
+             label='excitatory')
     # inh
-    mc = matthews_coeff(copy_data(df, 'inh'))
+    mc = matthew_coeff(select_conf_mat(df, 'inh'))
     plt.plot(df['regularization_strength'], mc, 'bo--', markersize=10,
-             label='inhibitory %s' % label, lw=lw)
+             label='inhibitory')
     plt.legend(loc=0, fontsize=14)
     #  decorate
     plt.xlabel('regularization strength', fontsize=16)
@@ -383,16 +341,33 @@ def plot_matthew_vs_regularization(params_roc, label='', lw=2, fignum=1):
     plt.yticks(fontsize=14)
     plt.legend(fontsize=14)
     plt.tight_layout(pad=1)
-    fname_png = os.path.join(resultsfolder, params_roc['rel_path_results'],
-                             'plot_Matthew.png')
+    fname_png = os.path.join(os.path.dirname(fn_csv), 'plot_Matthew.png')
     plt.savefig(fname_png)
 
 
-def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
-            dt_dis=1):
+def select_conf_mat(df, dtype='all'):
+    """Select confusion matrix."""
+    str_add = ''  # default
+    if dtype == 'exc':
+        str_add = '_exc'
+    if dtype == 'inh':
+        str_add = '_inh'
+    lun = len(df)
+    conf_mat = np.zeros((lun, 4), dtype='int')
+    conf_mat[:, 0] = df['tp%s' % str_add].to_numpy()
+    conf_mat[:, 1] = df['fp%s' % str_add].to_numpy()
+    conf_mat[:, 2] = df['tn%s' % str_add].to_numpy()
+    conf_mat[:, 3] = df['fn%s' % str_add].to_numpy()
+    return conf_mat
+
+
+def run_all(rel_path_results='', time_trim=(100, 5000), dt_dis=1,
+            get_rs = False):
     """Perform all steps.
 
-    npte: rel_path_config potrebbe essere letto dal file di output ..
+    get_rs get existing regularization_strength
+    note:
+        config is read directly from output.npy file!
     """
     # lasso
     params_lasso['rel_path_results'] = rel_path_results
@@ -402,17 +377,28 @@ def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
     # confusion mat
     params_conf_mat['rel_path_results'] = rel_path_results
     params_conf_mat['fname_lasso'] = 'RSmat_lasso.npy'
-    params_conf_mat['rel_path_config'] = rel_path_config
     params_conf_mat['fname_conf_mat'] = 'RSmat_conf_mat.npy'
 
     # roc
     params_roc['rel_path_results'] = rel_path_results
     params_roc['fname_conf_mat'] = 'RSmat_conf_mat.npy'
 
-    # step 0 R,S mat
-    calc_mat_processes('%s/output.npy' % (rel_path_results),
-                       '%s/RSmat.npy' % (rel_path_results),
-                       time_trim=time_trim, dt_dis=dt_dis)
+    if get_rs:
+        print("Get existing regularization strengths.")
+        fpath_res = os.path.join(resultsfolder, rel_path_results)
+        params_roc['reg_vect'] = nu.get_regularization_factor(fpath_res)
+
+    # build internal and external matrices - skip if it exists
+    if not(os.path.exists(os.path.join(resultsfolder,
+                                       '%s/RSmat.npy' % rel_path_results))):
+        print('RSmat.npy not found, compute it now!')
+        calc_mat_processes('%s/output.npy' % (rel_path_results),
+                           '%s/RSmat.npy' % (rel_path_results),
+                           time_trim=time_trim, dt_dis=dt_dis)
+    else:
+        print('RSmat.npy found!')
+
+    #  prepare output data frame
     keys = ['regularization_strength', 'tp', 'tn', 'fp', 'fn', 'tp_exc',
             'tn_exc', 'fp_exc', 'fn_exc', 'tp_inh', 'tn_inh', 'fp_inh',
             'fn_inh']
@@ -422,8 +408,6 @@ def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
     for reg in params_roc['reg_vect']:
         # lasso regularization (step 1)
         print(reg)
-        params_lasso['regularization_strength'] = reg
-        lasso(params_lasso)
         # confusion matrix (step 2)
         params_conf_mat['regularization_strength'] = reg
         dout = confusion_matrix(params_conf_mat)
@@ -435,8 +419,11 @@ def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
         df['fn_exc']
     df['(tp+tn+fp+fn)_inh'] = df['tp_inh'] + df['tn_inh'] + df['fp_inh'] + \
         df['fn_inh']
-    conn = load_dict(os.path.join(configfolder,
-                                  '%s/params_netw.npy' % rel_path_config))
+
+    fn_out = os.path.join(resultsfolder, '%s/output.npy' % rel_path_results)
+    conn = nu.load_dict(fn_out)['params_netw']
+
+    # count the amount of excitatory and inhibitory connections
     src = np.array(conn['conn_mat'])[:, 0]
     nexc = 0
     for nrn in conn['exc']:
@@ -446,9 +433,11 @@ def run_all(rel_path_config='0000', rel_path_results='', time_trim=(100, 5000),
         ninh += np.count_nonzero(src == nrn)
     df['total_exc'] = nexc
     df['total_inh'] = ninh
-    df.to_csv(os.path.join(resultsfolder, rel_path_results,
-                           'confusion_mat.csv'))
-    plot_roc(params_roc)
+    fn_csv = os.path.join(resultsfolder, rel_path_results, 'confusion_mat.csv')
+    df.to_csv(fn_csv)
+    plot_roc(fn_csv)
+    plot_matthew(fn_csv)
+    print('Completed!')
 
 
 def subsample_output(fn_out='', num_nrn_sample=20):
@@ -495,7 +484,55 @@ def subsample_output(fn_out='', num_nrn_sample=20):
     return dnew
 
 
-def matthews_coeff(conf_mat):
+def subsample_output2(fn_out, nrn_sample):
+    """Subsample existing results.
+
+    fn_out: path to the output.npy file
+    nrn_sample: what neurons to keep
+
+    notes:
+        consider to distinguish the selection based on #exc/#inh neurons
+        merge it with subsample_output !!
+
+    """
+    d = np.load(fn_out, allow_pickle=1).item()
+    #
+    nrn_sample_lst = nrn_sample.tolist()
+    num_nrn_sample = len(nrn_sample_lst)
+
+    # build the new output.py
+    dnew = {}
+    # connections
+    dnew['params_netw'] = {}
+    dnew['params_netw']['conn_mat'] = []
+    dnew['params_netw']['num_neurons'] = num_nrn_sample
+
+    dnew['params_netw']['exc'] = []
+    dnew['params_netw']['inh'] = []
+    for count, nrn in enumerate(nrn_sample):
+        if nrn < d['params_neurons']['num_exc_neurons']:
+            dnew['params_netw']['exc'].append(count)
+        else:
+            dnew['params_netw']['inh'].append(count)
+
+    for src, dst in d['params_netw']['conn_mat']:
+        if (src in nrn_sample_lst) & (dst in nrn_sample_lst):
+            # the subsampled neurons are remapped
+            src_new = nrn_sample_lst.index(src)
+            dst_new = nrn_sample_lst.index(dst)
+            dnew['params_netw']['conn_mat'].append((src_new, dst_new))
+    # spike trains
+    for idx_nrn, nrn in enumerate(nrn_sample_lst):
+        dnew[idx_nrn] = d[nrn]
+    # parameters
+    dnew['params_neurons'] = {}
+    dnew['params_neurons']['num_neurons'] = num_nrn_sample
+    dnew['params_neurons']['num_exc_neurons'] = len(dnew['params_netw']['exc'])
+    dnew['nrn_sample'] = nrn_sample  # the sampled neurons
+    return dnew
+
+
+def matthew_coeff(conf_mat):
     """Compute the Matthews cross-correlation coefficient.
 
     used on binary matrices
@@ -513,6 +550,25 @@ def matthews_coeff(conf_mat):
     idx = np.where(den)[0]
     mcc[idx] = (tp[idx] * tn[idx] - fp[idx] * fn[idx]) / np.sqrt(den[idx])
     return mcc
+
+
+def sens_spec_coeff(conf_mat):
+    """Compute the sensitivity and specificity indexes."""
+    def ratio(a, b):
+        s = a + b
+        return a/s if s else 1.
+    nrow = conf_mat.shape[0]
+    sensitivity = np.zeros(nrow)
+    specificity = np.zeros(nrow)
+    tp = conf_mat[:, 0]
+    fp = conf_mat[:, 1]
+    tn = conf_mat[:, 2]
+    fn = conf_mat[:, 3]
+    #
+    for k in range(nrow):
+        sensitivity[k] = ratio(tp[k], fn[k])
+        specificity[k] = ratio(tn[k], fp[k])
+    return sensitivity, specificity
 
 
 def area_under_curve(fname_conf_mat):
@@ -547,3 +603,93 @@ def area_under_curve(fname_conf_mat):
         # numerical integration
         auc[syn_type] = np.trapz(roc[syn_type][:, 1], roc[syn_type][:, 0])
     return auc
+
+
+def update_with_internal_noise(fn_rs, perc_noise):
+    """Add noise to the internal matrix."""
+    data = np.load(fn_rs, allow_pickle=1).item()
+    if not('exc_noise') in perc_noise:
+        perc_noise['exc_noise'] = 0.1
+    if not('inh_noise') in perc_noise:
+        perc_noise['inh_noise'] = 0
+    #
+    int_mat = np.copy(data['R'])
+    idx_r_zero, idx_c_zero = np.where(int_mat == 0)
+    num_zero = len(idx_r_zero)
+    num_one = (data['R'] == 1).sum()
+    num_minus_one = (data['R'] == -1).sum()
+    num_exc_noise = int(num_one * perc_noise['exc_noise'])
+    num_inh_noise = int(num_minus_one * perc_noise['inh_noise'])
+    num_noise = num_exc_noise + num_inh_noise
+    print('# of (exc, inh) noise events added = (%d,%d)' % (num_exc_noise,
+                                                            num_inh_noise))
+    idx_rnd = np.random.choice(num_zero, num_noise, replace=False)
+    idx_rnd_exc = idx_rnd[:num_exc_noise]
+    idx_rnd_inh = idx_rnd[num_exc_noise:]
+    int_mat[idx_r_zero[idx_rnd_exc], idx_c_zero[idx_rnd_exc]] = 1
+    int_mat[idx_r_zero[idx_rnd_inh], idx_c_zero[idx_rnd_inh]] = -1
+    #  report on changes
+    num_one = len(np.where(data['R'] == 1)[0])
+    num_minus_one = len(np.where(data['R'] == -1)[0])
+    print('original')
+    num_one = len(np.where(data['R'] == 1)[0])
+    num_minus_one = len(np.where(data['R'] == -1)[0])
+    print('# exc: %d, # inh: %d' % (num_one, num_minus_one))
+    # update
+    data['R'] = np.copy(int_mat)
+    num_one = len(np.where(data['R'] == 1)[0])
+    num_minus_one = len(np.where(data['R'] == -1)[0])
+    print('after update')
+    print('# exc: %d, # inh: %d' % (num_one, num_minus_one))
+    return data
+
+
+def scan_folders_confusion_mat_metrics(fpath, fn_conf_mat='confusion_mat.csv'):
+    """Compute metrics for all confusion matrices.
+
+    Scan fpath and subfolder for fn_conf_mat files
+    Computes:
+            1) Matthew cross-correlation coefficient (peak...)
+            2) ROC
+            3) Others? (PPC ?, F1 ? Youden? ...)
+    """
+    if fpath[-1] == '/':
+        fpath = fpath[: -1]
+    fname_lst = glob.glob(os.path.join(fpath, '**', fn_conf_mat),
+                          recursive=True)
+    #  get peak Matthew cross-correlation coefficient
+    # area_under_curve(fname)
+    # /home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh_spatial/0002/
+    # 0002_tlim_0_20000/confusion_mat.csv
+    dict_out = {}
+    dict_out['fname'] = []
+    for syn in ['exc', 'inh', 'all']:
+        dict_out['Matthew_max_%s' % syn] = []
+        dict_out['Matthew_argmax_%s' % syn] = []
+        dict_out['Youden_max_%s' % syn] = []
+        dict_out['Youden_argmax_%s' % syn] = []
+        dict_out['AUC_%s' % syn] = []
+    # scan all files
+    for fname in fname_lst:
+        #  print(os.path.dirname(fname))
+        dict_out['fname'].append(os.path.dirname(fname).replace(fpath, ''))
+        df = pd.read_csv(fname)
+        rs = df['regularization_strength'].to_numpy()
+        auc = area_under_curve(fname)
+        for syn in ['exc', 'inh', 'all']:
+            #  Matthew
+            mc = matthew_coeff(select_conf_mat(df, syn))
+            idx_max = np.argmax(mc)
+            dict_out['Matthew_max_%s' % syn].append(mc[idx_max])
+            dict_out['Matthew_argmax_%s' % syn].append(rs[idx_max])
+            #  Youden
+            sens, spec = sens_spec_coeff(select_conf_mat(df, syn))
+            yi = sens + spec - 1
+            idx_max = np.argmax(yi)
+            dict_out['Youden_max_%s' % syn].append(yi[idx_max])
+            dict_out['Youden_argmax_%s' % syn].append(rs[idx_max])
+            # auc
+            dict_out['AUC_%s' % syn].append(auc[syn])
+
+        #  split fname keep 0002_tlim_5000_6000/__noise/exc_inh_400_0/run1
+    return pd.DataFrame(dict_out)

@@ -47,7 +47,6 @@ def load_json(fname, fpath, count):
 def save_npy(data, fpath, fname):
     """Save file and prevent overwriting."""
     count = 0
-    #  while os.path.exists(os.path.join(fpath, fname % snum(count))):
     while os.path.isdir(os.path.join(fpath, snum(count))):
         count += 1
     print(count)
@@ -132,10 +131,7 @@ def create_conn_mat_spatial(params_neurons, pos=None):
     params_netw['x'] = pos[:, 0]
     params_netw['y'] = pos[:, 1]
 
-    if 'sigma' in params_neurons:
-        sigma = params_neurons['sigma']
-    else:
-        sigma = 0.25
+    sigma = params_neurons['sigma'] if 'sigma' in params_neurons else 0.25
 
     # taken from utils.py Lonardoni et al. 2018
     from scipy.spatial.distance import pdist, squareform

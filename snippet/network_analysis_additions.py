@@ -1,4 +1,6 @@
 import numpy as np
+import pylab as plt
+import os
 import network_util as nu
 import network_analysis as na
 
@@ -56,7 +58,7 @@ def graph_metrics(fpath_out, reg_vect=None, what={'sparseness': None}):
     return dout
 
 
-def plot_graph_metrics(dout, item='sparseness' fpath_out=''):
+def plot_graph_metrics(dout, item='sparseness', fpath_out=''):
     """Plot graph metrics."""
     plt.figure(figsize=(10, 10))
     plt.plot(dout['reg_vect'], dout[item], 'g-', lw=2, label='functional')
