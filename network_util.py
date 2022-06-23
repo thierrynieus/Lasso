@@ -41,6 +41,7 @@ def load_json(fname, fpath, count):
     fn_json = os.path.join(fpath, snum(count), fname)
     f = open(fn_json)
     data = json.load(f)
+    f.close()
     return data
 
 

@@ -1,8 +1,12 @@
 # network_analysis
 import numpy as np
+import matplotlib
+#matplotlib.rcParams['svg.fonttype']
+matplotlib.rcParams['svg.fonttype'] = 'none'
 import pylab as plt
 import networkx as nx
 import os
+import pandas as pd
 
 import network_util as nu
 import network_analysis as na
@@ -15,7 +19,11 @@ import network_analysis as na
  '''
 
 colormap = 'jet'
-figsize=(5, 5)
+fs_lab = 14
+fs_ticks = 12
+fs_legend = 12
+ms = 10  # markersize
+fig_type = '.png'
 
 
 def plot_traces(fn_data, num_max=1e10, show_noise=True, delay=0):
@@ -47,28 +55,67 @@ def plot_traces(fn_data, num_max=1e10, show_noise=True, delay=0):
                 plt.plot([nt+delay, nt+delay], [-80, 20], 'b-')
 
 
-def raster_plot(fn_data, binsz=20):
+def plot_one_trace(fn_data, num_neuron=0):
+    """Plot one trace well."""
+    data = nu.load_dict(fn_data)
+    if not('vm' in list(data[0])):
+        print('>>> Error: raw traces are not available!')
+        return None
+    # source neurons
+    conn_mat = np.array(data['params_netw']['conn_mat'])
+    idx_src = np.where(conn_mat[:, 1] == num_neuron)[0]
+    nrn_src = np.unique(conn_mat[idx_src, 0])
+
+    plt.figure(figsize=(20, 20))
+    vm = data[num_neuron]['vm']['V_m']
+    plt.plot(data[num_neuron]['vm']['times'], vm, 'k-', lw=2)
+    for src in nrn_src:
+        col = 'r' if src in data['params_netw']['exc'] else 'b'
+        time_lst = list(data[src]['vm']['times'])
+        tspk_all_input = data[src]['spikes_nrn']
+        #  network inputs
+        idx = np.array([time_lst.index(tspk_in) for tspk_in in tspk_all_input])
+        plt.plot(data[src]['vm']['times'][idx], vm[idx], c=col, marker='^',
+                 markersize=8, alpha=0.5, lw=0)
+        #  noisy events
+        tspk_all_noise = data[src]['spikes_noise']
+        idx = np.array([time_lst.index(tspk_in) for tspk_in in tspk_all_noise])
+        plt.plot(data[src]['vm']['times'][idx], vm[idx], c='k', marker='o',
+                 markersize=4, alpha=0.5, lw=0)
+    plt.xlabel('time (ms)', fontsize=fs_lab)
+    plt.ylabel('Voltage (mV)', fontsize=fs_lab)
+    plt.xticks(fontsize=fs_ticks)
+    plt.yticks(fontsize=fs_ticks)
+
+
+def raster_plot(fn_data, binsz=20, figsize=(4, 4), lw=1, ms=6):
     """Produce a raster plot."""
     data = nu.load_dict(fn_data)
     num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
     spk = []
     # plot
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize=figsize)
     ax2 = ax1.twinx()
     tmax = -1
     for k in range(num_neurons):
         tspk = data[k]['spikes_nrn']
-        ax1.plot(tspk, np.repeat(k, len(tspk)), 'ko')
+        ax1.plot(tspk, np.repeat(k, len(tspk)), 'ko', markersize=ms)
         spk.extend(tspk)
         tmax = max(tmax, np.max(spk))
     tmax += binsz
     bins = np.arange(0, tmax, binsz)
     h = np.histogram(spk, bins=bins)[0]/(binsz/1000.*num_neurons)
-    ax2.plot(bins[:-1], h, 'r-', lw=2)
-    ax1.set_xlabel('time (ms)', fontsize=14)
-    ax1.set_ylabel('cell', fontsize=14, color='k')
-    ax2.set_ylabel('istantaneous firing rate (Hz)', fontsize=14, color='r')
+    ax2.plot(bins[:-1], h, 'r-', lw=lw)
+    ax1.set_xlabel('time (ms)', fontsize=fs_lab)
+    ax1.set_ylabel('cell', fontsize=fs_lab, color='k')
+    ax2.set_ylabel('istantaneous firing rate (Hz)', fontsize=fs_lab, color='r')
+    ax1.set_yticklabels([], fontsize=fs_ticks)
+    #  ax1.tick_params(axis='x', size=fs_ticks)
+    ax1.tick_params(axis='y', size=fs_ticks)
+    plt.tight_layout(pad=1)
     # save in the same folder!!!
+    fn_fig = os.path.join(os.path.dirname(fn_data), 'raster_plot' + fig_type)
+    plt.savefig(fn_fig)
 
 
 def mean_firing_rate(fn_data, time_trim=(100, 5000)):
@@ -218,8 +265,10 @@ def stat_distance(fn_out, fn_reg):
                                                               idx_nrn_dst])
     # functional
     mixed_detect = {}
+    num_detect = {}
     for syn_type in ['exc', 'inh']:
         mixed_detect[syn_type] = []
+        num_detect[syn_type] = []
         syn_sign = 1 if syn_type == 'exc' else -1
         for nrn in d['params_netw'][syn_type]:
             idx_nrn_dst = np.where((lasso_mat[nrn, :]) == syn_sign)[0]
@@ -228,7 +277,9 @@ def stat_distance(fn_out, fn_reg):
             #  determine the amount of mixed connections (E->I, I->E)
             idx_nrn_dst = np.where((lasso_mat[nrn, :]) == -syn_sign)[0]
             mixed_detect[syn_type].append(len(idx_nrn_dst))
-    return stat_dist, mixed_detect
+            idx_nrn_dst = np.where(lasso_mat[nrn, :])[0]
+            num_detect[syn_type].append(len(idx_nrn_dst))
+    return stat_dist, mixed_detect, num_detect
 
 
 def stat_distance_dist(fpath_out, reg_vect=None, bins=50):
@@ -249,7 +300,8 @@ def stat_distance_dist(fpath_out, reg_vect=None, bins=50):
     # functional
     for reg_coeff in reg_vect:
         fn_reg = os.path.join(fpath_out, 'reg_%g/RSmat_lasso.npy' % reg_coeff)
-        stat_dist, mixed_detect = na.stat_distance(fn_out, fn_reg)
+        stat_dist, mixed_detect, _ = stat_distance(fn_out, fn_reg)
+        # stat_dist, mixed_detect, num_detect
         #
         funct[reg_coeff] = stat_dist['functional']
         hist_conn[reg_coeff] = {}
@@ -275,7 +327,7 @@ def stat_distance_dist(fpath_out, reg_vect=None, bins=50):
     return dout
 
 
-def plot_stat_link_stat(dout, fpath_png, norm=True):
+def plot_stat_link_stat(dout, fpath_fig, norm=True):
     """Plot link lenght statistics.
 
     dout generated by stat_distance_dist
@@ -313,7 +365,7 @@ def plot_stat_link_stat(dout, fpath_png, norm=True):
         plt.yticks(fontsize=14)
         plt.xlabel('link length', fontsize=18)
         plt.ylabel(ylabel, fontsize=18)
-    plt.savefig(os.path.join(fpath_png, 'link_length_summary.png'))
+    plt.savefig(os.path.join(fpath_fig, 'link_length_summary%s' % fig_type))
 
     #  *** single plots ***
     count_fig = 2
@@ -339,7 +391,8 @@ def plot_stat_link_stat(dout, fpath_png, norm=True):
             plt.yticks(fontsize=14)
             plt.xlabel('link length', fontsize=18)
             plt.ylabel(ylabel, fontsize=18)
-        plt.savefig(os.path.join(fpath_png, 'link_length_reg=%g.png' % reg))
+        plt.savefig(os.path.join(fpath_fig,
+                                 'link_length_reg=%g%s' % (reg, fig_type)))
 
     #  *** mixed connections ***
     mix_stat = {}
@@ -370,7 +423,7 @@ def plot_stat_link_stat(dout, fpath_png, norm=True):
         plt.xlabel('regularization', fontsize=18)
         plt.ylabel('# missmatches / neuron', fontsize=18)
         plt.ylim(ymin=-0.05)
-    plt.savefig(os.path.join(fpath_png, 'missmatches.png'))
+    plt.savefig(os.path.join(fpath_fig, 'missmatches%s' % fig_type))
 
 
 def inter_group_connections(conn_mat, groups):
@@ -392,19 +445,26 @@ def inter_group_connections(conn_mat, groups):
     return count_dct, count_across
 
 
-def plot_graph(fpath_out, reg, nodelist=None, ew_max=8, node_size=800):
+def plot_graph(fpath_out, reg, nodelist=None, ew_max=8, node_size=800,
+               arrsize=20, pos=None):
     """Plot graph.
 
     useful:
         nx.write_gpickle(G,'graph.gpickle')
         H=nx.read_gpickle('graph.gpickle')
     """
+    # global pos
     data = nu.load_dict(os.path.join(fpath_out, 'output.npy'))
     conn_mat_struct = data['params_netw']['conn_mat']
     beta = nu.load_dict(os.path.join(fpath_out, 'reg_%g' % reg,
                                      'RSmat_lasso.npy'))['beta']
-    pos = [(x, y) for x, y in zip(data['params_netw']['x'],
-                                  data['params_netw']['y'])]
+    if 'x' in list(data['params_netw']):
+        pos = [(x, y) for x, y in zip(data['params_netw']['x'],
+                                      data['params_netw']['y'])]
+    elif pos is None:
+        print('The coordinates are absent. Generating random (x,y)!')
+        pos = [tuple(np.random.rand(2))
+               for k in range(data['params_netw']['num_neurons'])]
     # functional graph
     r_all, c_all = np.where(beta)
 
@@ -456,7 +516,8 @@ def plot_graph(fpath_out, reg, nodelist=None, ew_max=8, node_size=800):
     #  fig = plt.figure(1, figsize=(200, 80), dpi=60)
     nx.draw(graph, with_labels=True, pos=pos, node_color=color_map,
             width=edge_widths, node_size=node_size, edge_color=edge_colors,
-            arrowsize=80)  # , arrowstyle='fancy')
+            arrowsize=arrsize)  # , arrowstyle='fancy')
+    return pos
 
 
 def zoom_graph(fpath_out, nrn=0, hemi=0.1):

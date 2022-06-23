@@ -17,8 +17,7 @@ def graph_metrics(fpath_out, reg_vect=None, what={'sparseness': None}):
     data = nu.load_dict(os.path.join(fpath_out, 'output.npy'))
     num_neurons = data['num_neurons']
     conn_mat_struct = data['params_netw']['conn_mat']
-    pos = [(x, y) for x, y in zip(data['params_netw']['x'],
-                                  data['params_netw']['y'])]
+    #  pos = [(x, y) for x, y in zip(data['params_netw']['x'], data['params_netw']['y'])]
     if reg_vect is None:
         reg_vect = nu.get_regularization_factor(fpath_out)
 
@@ -39,7 +38,7 @@ def graph_metrics(fpath_out, reg_vect=None, what={'sparseness': None}):
     for reg in reg_vect:
         if 'sparseness' in what.keys():
             dout['sparseness'].append(100 * len(f_graphs[reg]['conn_mat']) /
-                                     num_neurons**2)
+                                      num_neurons**2)
         if 'intergroup' in what.keys():
             i_gr, a_gr = na.inter_group_connections(f_graphs[reg]['conn_mat'],
                                                     what['intergroup'])

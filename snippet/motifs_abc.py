@@ -81,6 +81,51 @@ def analyze_triplets(fpath_out, reg):
     return count_fake, count_real, lun_funct2, lun_struct2
 
 
+def analyze_motifs(fpath_out, reg_lst, num_hopes=8):
+    """Analyze motifs."""
+    #  structural connectome
+    data = nu.load_dict(os.path.join(fpath_out, 'output.npy'))
+    conn_structural = nx.DiGraph(data['params_netw']['conn_mat'])
+    conn_structural_sp = nx.shortest_path(conn_structural)
+    mat_count_paths = np.zeros((num_hopes - 1, len(reg_lst)))
+    struct_paths = {}
+
+    for hope in range(2, num_hopes+1):
+        struct_paths[hope] = [tuple(path) for k in range(data['num_neurons'])
+                              for path in list(conn_structural_sp[k].values())
+                              if len(path) == hope]
+        print('hopes %d in the structural connectome with %d paths' %
+              (hope, len(struct_paths[hope])))
+
+    for idx_col, reg in enumerate(reg_lst):
+        beta = nu.load_dict(os.path.join(fpath_out, 'reg_%g' % reg,
+                                         'RSmat_lasso.npy'))['beta']
+        # functional connectome
+        r_all, c_all = np.where(beta)
+        conn_functional = nx.DiGraph([(r, c) for r, c in zip(r_all, c_all)])
+        conn_functional_sp = nx.shortest_path(conn_functional)
+
+        count_real_lst = []
+        for hope in range(2, num_hopes+1):
+            funct_path = [tuple(path) for k in range(data['num_neurons'])
+                          for path in list(conn_functional_sp[k].values())
+                          if len(path) == hope]
+            num_funct_path = len(funct_path)
+            #  print(hope, num_funct_path)
+            count_real = 0
+            for conn_func in funct_path:
+                if conn_func in struct_paths[hope]:
+                    count_real += 1
+            if num_funct_path:
+                count_real_lst.append(count_real / num_funct_path)
+            else:
+                count_real_lst.append(0)
+            #  if count_real:
+            #    print(hope, count_real, num_funct_path)
+        mat_count_paths[:, idx_col] = np.array(count_real_lst)
+    return mat_count_paths, struct_paths
+
+
 def plot_fake_real(dout, reg):
     """Do it now."""
     bs_all = dout.keys()
@@ -97,3 +142,17 @@ def plot_fake_real(dout, reg):
     plt.yticks(fontsize=16)
     plt.xlabel('regularization strength', fontsize=18)
     plt.ylabel('# connections', fontsize=18)
+
+
+'''
+plt.plot(1/reg_lst, mat_count_paths[0,::-1], 'ko-', label='hope 2')
+plt.plot(1/reg_lst, mat_count_paths[1,::-1], 'ro-', label='hope 3')
+plt.plot(1/reg_lst, mat_count_paths[2,::-1], 'bo-', label='hope 4')
+plt.plot(1/reg_lst, mat_count_paths[3,::-1], 'go-', label='hope 5')
+plt.xlabel(r'$\lambda$', fontsize=18)
+plt.ylabel('fraction correct', fontsize=18)
+plt.xticks(fontsize=16)
+plt.yticks(fontsize=16)
+plt.legend(loc='lower left', fontsize=16)
+plt.tight_layout(pad=1)
+'''
