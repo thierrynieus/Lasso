@@ -36,7 +36,7 @@ def save_json(data, fpath, fname):
 def load_json(fname, fpath, count):
     """Load a json file.
 
-    comment: unused
+    comment: used to load config files
     """
     fn_json = os.path.join(fpath, snum(count), fname)
     f = open(fn_json)
@@ -128,7 +128,7 @@ def create_conn_mat_spatial(params_neurons, pos=None):
 
     params_neurons['spatial_coordinates'] = True
     if pos is None:
-        pos = np.random.rand((n, 2))
+        pos = np.random.rand(n, 2)
     params_netw['x'] = pos[:, 0]
     params_netw['y'] = pos[:, 1]
 
@@ -147,9 +147,77 @@ def create_conn_mat_spatial(params_neurons, pos=None):
     return params_netw
 
 
+def create_clusters(centers, radius, num_npc=25):
+    """Create clusters.
+
+    arguments:
+        num_npc number of neurons per cluster
+    """
+    pos = []
+
+    for (x0, y0) in centers:
+        theta = 2 * np.pi * np.random.rand(num_npc)
+        r = radius * np.sqrt(np.random.rand(num_npc))  # uniform within circle
+        x = x0 + r * np.cos(theta)
+        y = y0 + r * np.sin(theta)
+        pos.extend((xi, yi) for xi, yi in zip(x, y))
+    num_neurons = len(pos)
+    # idx_rnd shuffling indexes
+    idx_rnd = np.random.choice(np.arange(num_neurons), num_neurons,
+                               replace=False)
+    pos_new = [pos[i] for i in idx_rnd]
+    return pos_new, idx_rnd
+
+
 def get_regularization_factor(fpath):
     """Get the analyzed regularization coefficients."""
     fn_search = os.path.join(fpath, 'reg_*')
     fn_lst = glob.glob(fn_search, recursive=True)
     reg_lst = [float(fn.split('/')[-1].replace('reg_', '')) for fn in fn_lst]
     return np.sort(reg_lst)
+
+
+params_nice_plot = {}
+params_nice_plot['num_std'] = 1
+params_nice_plot['oversample'] = 10
+params_nice_plot['colbk'] = 'g'
+params_nice_plot['colbound'] = 'k'
+params_nice_plot['colLine'] = 'w'
+params_nice_plot['thelabel'] = ''
+params_nice_plot['alpha'] = .4
+params_nice_plot['lw'] = 2
+
+
+def nice_plot(x, y, yerr, params):
+    """Plot bands with splines.
+
+    Arguments:
+        x, y, yerr        data
+        params
+        OverSample:                     oversampling factor used to build splines
+        Nstd:                           number of std to consider
+        colbk,colbound,colLine:         colors
+        thelabel:                       label for the data
+    """
+    from scipy.interpolate import BSpline
+    x_inf, x_sup = x[0], x[-1]
+    y_inf = y - params['num_std'] * yerr
+    y_sup = y + params['num_std'] * yerr
+    num_points = params['oversample'] * len(x)
+    if params['oversample'] > 1:
+        x_new = np.linspace(x_inf, x_sup, num_points)
+        y_sup_new = BSpline(x, y_sup, x_new)
+        y_inf_new = BSpline(x, y_inf, x_new)
+        y_new = BSpline(x, y, x_new)
+    else:
+        x_new = x
+        y_new = y
+        y_inf_new = y_inf
+        y_sup_new = y_sup
+    # plot
+    plt.plot(x_new, y_sup_new, '%s-' % params['colbound'])
+    plt.plot(x_new, y_inf_new, '%s-' % params['colbound'])
+    plt.fill_between(x_new, y_inf_new, y_sup_new, color='%s' % params['colbk'],
+                     alpha=params['alpha'])
+    plt.plot(x_new, y_new, '%s-' % params['colLine'], linewidth=params['lw'],
+             label=params['thelabel'])

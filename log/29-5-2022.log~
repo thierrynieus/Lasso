@@ -1,0 +1,88 @@
+# IPython log file
+
+get_ipython().run_line_magic('logstart', 'log/29-5-2022.log')
+get_ipython().run_line_magic('run', '-i lasso.py')
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample1',time_trim=(500,10000),get_rs=True)
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample1',time_trim=(500,10000),get_rs=True)
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample2',time_trim=(500,10000),get_rs=True)
+plt.close('all')
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample3',time_trim=(500,10000),get_rs=True)
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample4',time_trim=(500,10000),get_rs=True)
+plt.close('all')
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample5',time_trim=(500,10000),get_rs=True)
+plt.close('all')
+params_roc
+np
+np.random.seed(1234)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy')
+np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample6/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy')
+np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample7/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy')
+np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample8/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy')
+np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample9/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy')
+np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample10/output.npy',dout)
+list(dout)
+dout['nrn_sample']
+dout['params_neurons']
+#run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample6',time_trim=(500,10000),get_rs=True)
+d=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample5/output.npy',allow_pickle=1).item()
+list(d)
+d=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample5/RSmat.npy',allow_pickle=1).item()
+list(d)
+d['R'].shape
+run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample6',time_trim=(500,10000),get_rs=False)
+plt.close('all')
+a=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample5/RSmat.npy',allow_pickle=1).item()
+list(a)
+a['R'].shape
+get_ipython().run_line_magic('history', '')
+np.random.seed(4321)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample1/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample2/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample3/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample4/output.npy',dout)
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample5/output.npy',dout)
+idx=[1,2,3,4,5,7,8,9,10]
+for i in idx:
+    run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample%d'%i,time_trim=(500,10000),get_rs=False)
+    plt.close('all')
+    
+    
+dout=subsample_output('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy');np.save('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample1/output.npy',dout)
+for i in idx:
+    run_all('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples/subsample%d'%i,time_trim=(500,10000),get_rs=False)
+    plt.close('all')
+    
+    
+    
+fpath='/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/subsamples'
+df_out = scan_folders_confusion_mat_metrics(fpath,mcc_peak_decay_frac=0.01)
+#df_out.to_csv(os.path.join(fpath,'confusion_mat_summary.csv'))
+import os
+df_out.to_csv(os.path.join(fpath,'confusion_mat_summary.csv'))
+d=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/output.npy',allow_pickle=1).item()
+list(d)
+d['params_netw']
+list(d['params_netw'])
+list(d)
+d['fpath_cfg']
+d['cfg_num']
+list(d['params_netw'])
+len(d['params_netw']['conn_mat'])
+len(d['params_netw']['conn_mat'])/100**2
+dg=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh_spatial/0000/output.npy',allow_pickle=1).item()
+len(dg['params_netw']['conn_mat'])/100**2
+dg=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh_spatial/0001/output.npy',allow_pickle=1).item()
+len(dg['params_netw']['conn_mat'])/100**2
+dg=np.load('/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh_spatial/0002/output.npy',allow_pickle=1).item()
+len(dg['params_netw']['conn_mat'])/100**2
+fpath
+fpath='/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/'
+df_out = scan_folders_confusion_mat_metrics(fpath,mcc_peak_decay_frac=0.01)
+df_out.to_csv(os.path.join(fpath,'confusion_mat_summary_all.csv'))
+fpath_0_10000='/home/tnieus/Projects/RESULTS/Lasso/100nrn_80exc_20inh/0000/tlim_0_10000'
+run_all(fpath_0_10000,get_res=True)
+run_all(fpath_0_10000,get_rs=True)

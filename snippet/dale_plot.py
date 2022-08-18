@@ -20,7 +20,7 @@ fig_type = '.png'
 
 def plot_dale(fpath, plot_legend=False, plot_fig=False):
     """Plot dale."""
-    df = na.batch_dale(fpath)
+    df = batch_dale(fpath)
     if plot_fig:
         plt.figure(figsize=figsize)
     plt.plot(df['lambda'], df['dale_precision_inh'], 'bo-', lw=2,
@@ -38,14 +38,14 @@ def plot_dale(fpath, plot_legend=False, plot_fig=False):
 
 def compute_dale(fpath, idx_plateau=0):
     """Analyze dale and MCCpeak."""
-    df = na.batch_dale(fpath)
+    df = batch_dale(fpath)
     lambda_val = df['lambda'].to_numpy()
     dale_exc_1 = np.where(df['dale_precision_exc'] == 1)[0]
     dale_inh_1 = np.where(df['dale_precision_inh'] == 1)[0]
     return lambda_val[dale_exc_1[idx_plateau]], lambda_val[dale_inh_1[idx_plateau]]
 
 
-def batch_compute_dale(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0):
+def batch_compute_dale_old(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0):
     """Batch compute dale."""
     dout = {}
     dout['fname'] = []
@@ -68,9 +68,9 @@ def batch_compute_dale(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0):
         # get the corresponding MCC
         fn_csv = os.path.join(fpath_base, nu.snum(num), 'confusion_mat.csv')
         df = pd.read_csv(fn_csv)
-        lambd = 1 / df['regularization_strength'].to_numpy()
-        mc_exc = matthew_coeff(select_conf_mat(df, 'exc'))
-        mc_inh = matthew_coeff(select_conf_mat(df, 'inh'))
+        lambd = 1 / df['regularization_strength'].to_numpy()[::-1]
+        mc_exc = matthew_coeff(select_conf_mat(df, 'exc'))[::-1]
+        mc_inh = matthew_coeff(select_conf_mat(df, 'inh'))[::-1]
         idx_exc = np.where(lambd == lamb_dale_exc)[0][0]
         idx_inh = np.where(lambd == lamb_dale_inh)[0][0]
         dout['MCC(lambda_dale_exc)'].append(mc_exc[idx_exc])
@@ -79,7 +79,6 @@ def batch_compute_dale(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0):
         dout['MCCpeak_inh'].append(np.max(mc_inh))
         dout['lambda_MCC_exc'].append(lambd[np.argmax(mc_exc)])
         dout['lambda_MCC_inh'].append(lambd[np.argmax(mc_inh)])
-
     return pd.DataFrame(dout)
 
 
@@ -92,7 +91,7 @@ def group_curves(fpath_tmp, idx_rng=np.arange(1, 11)):
     for syn_type in ['exc', 'inh']:
         mat[syn_type] = []
         for idx in idx_rng:
-            df = na.batch_dale(fpath_tmp % nu.snum(idx))
+            df = batch_dale(fpath_tmp % nu.snum(idx))
             data = df['dale_precision_%s' % syn_type].to_numpy()
             mat[syn_type].append(data)
     mat['lambda'] = df['lambda'].to_numpy()

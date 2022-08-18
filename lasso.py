@@ -416,7 +416,7 @@ def select_conf_mat(df, dtype='all'):
     return conf_mat
 
 
-def run_all(rel_path_results='', rel_path_output='', time_trim=(100, 5000),
+def run_all(rel_path_results='', rel_path_output=None, time_trim=(100, 5000),
             dt_dis=1, get_rs=False):
     """Perform all steps.
 
@@ -434,6 +434,8 @@ def run_all(rel_path_results='', rel_path_output='', time_trim=(100, 5000),
     params_lasso['fname_lasso'] = 'RSmat_lasso.npy'
 
     # confusion mat
+    if rel_path_output is None:
+        rel_path_output = rel_path_results
     params_conf_mat['rel_path_results'] = rel_path_results
     params_conf_mat['rel_path_output'] = rel_path_output
     params_conf_mat['fname_lasso'] = 'RSmat_lasso.npy'

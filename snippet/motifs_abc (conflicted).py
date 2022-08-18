@@ -150,18 +150,15 @@ def analyze_motifs_v2(fpath_out, reg_lst, num_hopes=6):
 
     conn_structural = nx.DiGraph(data['params_netw']['conn_mat'])
 
-    conn_structural_paths = {}
+    conn_structural_paths = []
     for nrn_src in range(num_neurons):
         for nrn_dst in range(num_neurons):
             if nrn_src != nrn_dst:
-                print(nrn_src, nrn_dst)
                 simp_paths = nx.all_simple_paths(conn_structural, nrn_src,
                                                  nrn_dst, cutoff=num_hopes)
-                #conn_structural_paths.extend(simp_paths)
-                conn_structural_paths[(nrn_src, nrn_dst)] = simp_paths
-    #lun_conn_structural_paths = [len(conn) for conn in conn_structural_paths]
-    #return conn_structural_paths, lun_conn_structural_paths
-    return conn_structural_paths
+                conn_structural_paths.extend(simp_paths)
+    lun_conn_structural_paths = [len(conn) for conn in conn_structural_paths]
+    return conn_structural_paths, lun_conn_structural_paths
     """
     nx._all_simple_paths_graph
 
@@ -234,4 +231,5 @@ plt.ylabel('fraction correct', fontsize=18)
 plt.xticks(fontsize=16)
 plt.yticks(fontsize=16)
 plt.legend(loc='lower left', fontsize=16)
+plt.tight_layout(pad=1)
 '''

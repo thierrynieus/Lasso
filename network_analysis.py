@@ -129,7 +129,7 @@ def mean_firing_rate(fn_data, time_trim=(100, 5000)):
         num_neurons = len([x for x in data if isinstance(x, int)])  # robust?
     mfr = []
     twindow = time_trim[1] - time_trim[0]
-    print('time window = %g ms' % twindow)
+    #print('time window = %g ms' % twindow)
     for k in range(num_neurons):
         tspk = data[k]['spikes_nrn']
         tspk = tspk[(tspk > time_trim[0]) & (tspk < time_trim[1])]

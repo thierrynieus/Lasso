@@ -11,11 +11,10 @@ plt.ion()
 colormap = 'jet'
 
 fpath = '/home/tnieus/Projects/RESULTS/Lasso/paper/20nrn_16exc_4inh/'
-fpath_fig = os.path.join(fpath, 'noise/added_noise/fig')
+fpath_fig = os.path.join(fpath, 'noise/added_wrong_detection/fig')
 
-noise_types = ['inhibitory_as_excitatory_in_sim', 'exc_inh_x2', 'exc_inh_x4',
-               'exc_inh_x16']
-noise_labels = ['(0,1)', '(1,2)', '(2,4)', '(8,16)']
+noise_types = ['20perc', '50perc', '90perc']
+noise_labels = ['20%', '50%', '90%']
 number = len(noise_types)
 figsize = (4, 4)
 fs_lab = 14
@@ -42,13 +41,11 @@ def plot_mcc(sim_num=1, idx_rng=range(1, 11)):
             mat_dict[noise_type][syn_type] = []
     for noise_type in noise_types:
         for idx in idx_rng:
-            fn_csv = os.path.join(fpath, nu.snum(sim_num), 'added_noise',
-                                  noise_type, nu.snum(idx),
-                                  'confusion_mat.csv')
+            fn_csv = os.path.join(fpath, nu.snum(sim_num), 'added_wrong_detection', noise_type, nu.snum(idx), 'confusion_mat.csv')
             df = pd.read_csv(fn_csv)
             for syn_type in ['all', 'exc', 'inh']:
-                mc = matthew_coeff(select_conf_mat(df, syn_type))[::-1]
-                mat_dict[noise_type][syn_type].append(mc)
+                mat_dict[noise_type][syn_type].append(matthew_coeff(select_conf_mat(df, syn_type))[::-1])
+
     # plot
     cmap = plt.get_cmap(colormap)
     colors = [cmap(i) for i in np.linspace(0, 1, number)]
@@ -86,13 +83,9 @@ def plot_mcc_peak(sim=range(1, 11), idx_rng=range(1, 11)):
         for noise_type in noise_types:
             for idx in idx_rng:
                 for sim_num in sim:
-                    fn_csv = os.path.join(fpath, nu.snum(sim_num),
-                                          'added_noise', noise_type,
-                                          nu.snum(idx), 'confusion_mat.csv')
+                    fn_csv = os.path.join(fpath, nu.snum(sim_num), 'added_wrong_detection', noise_type, nu.snum(idx), 'confusion_mat.csv')
                     df = pd.read_csv(fn_csv)
-                    mc_max = np.max(matthew_coeff(select_conf_mat(df,
-                                                                  syn_type)))
-                    mat_dict[syn_type][noise_type].append(mc_max)
+                    mat_dict[syn_type][noise_type].append(np.max(matthew_coeff(select_conf_mat(df, syn_type))))
 
     for syn_type in ['all', 'exc', 'inh']:
         plt.figure(figsize=figsize)
@@ -100,11 +93,10 @@ def plot_mcc_peak(sim=range(1, 11), idx_rng=range(1, 11)):
         for noise_type in noise_types:
             dout.append(mat_dict[syn_type][noise_type])
         plt.boxplot(dout, whis=[5, 95])
-        plt.xticks([1, 2, 3, 4], noise_labels, fontsize=fs_ticks)
+        plt.xticks([1, 2, 3], noise_labels, fontsize=fs_ticks)
         plt.yticks(fontsize=fs_ticks)
-        plt.xlabel('instrumental noise', fontsize=fs_lab)
+        plt.xlabel('inhibitory to excitatory events', fontsize=fs_lab)
         plt.ylabel('MCC peak', fontsize=fs_lab)
         plt.tight_layout(pad=1)
-        plt.savefig(os.path.join(fpath_fig, 'boxplot_%s.%s' % (syn_type,
-                                                               fig_ext)))
+        plt.savefig(os.path.join(fpath_fig, 'boxplot_%s.%s' % (syn_type, fig_ext)))
         plt.close()

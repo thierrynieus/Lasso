@@ -44,11 +44,14 @@ def dale(fn_out, fn_reg):
     return mixed_detect, num_detect
 
 
-def batch_dale(fpath_out, reg_vect=None):
+def batch_dale(fpath_out, fpath_output=None, reg_vect=None):
     """Perform Dale analysis over reg_vect."""
     if reg_vect is None:
         reg_vect = nu.get_regularization_factor(fpath_out)
-    fn_out = os.path.join(fpath_out, 'output.npy')
+    if fpath_output is None:
+        fn_out = os.path.join(fpath_out, 'output.npy')
+    else:
+        fn_out = os.path.join(fpath_output, 'output.npy')
     fn_reg = os.path.join(fpath_out, 'reg_%g', 'RSmat_lasso.npy')
     dout = {}
     dout['lambda'] = []
@@ -74,9 +77,9 @@ def batch_dale(fpath_out, reg_vect=None):
     return pd.DataFrame(dout)
 
 
-def plot_dale(fpath_out, plot_legend=False, plot_fig=False):
+def plot_dale(fpath_out, plot_legend=False, plot_fig=False, reg_vect=None):
     """Plot dale."""
-    df = batch_dale(fpath_out)
+    df = batch_dale(fpath_out, reg_vect=reg_vect)
     if plot_fig:
         plt.figure(figsize=figsize)
     plt.plot(df['lambda'], df['dale_precision_inh'], 'bo-', lw=2,
@@ -92,19 +95,27 @@ def plot_dale(fpath_out, plot_legend=False, plot_fig=False):
     plt.tight_layout(pad=1)
 
 
-def compute_dale(fpath_out, idx_plateau=0):
+def compute_dale(fpath_out, fpath_output=None, idx_plateau=0):
     """Analyze dale and MCCpeak."""
-    df = batch_dale(fpath_out)
+    df = batch_dale(fpath_out, fpath_output)
     lambda_val = df['lambda'].to_numpy()
+    if len(df) == 0:
+        print(fpath_out)
     dale_exc_1 = np.where(df['dale_precision_exc'] == 1)[0]
-    lambda_dale_exc_1 = lambda_val[dale_exc_1[idx_plateau]]
+    if len(dale_exc_1):
+        lambda_dale_exc_1 = lambda_val[dale_exc_1[idx_plateau]]
+    else:
+        lambda_dale_exc_1 = lambda_val[-1]
     dale_inh_1 = np.where(df['dale_precision_inh'] == 1)[0]
-    lambda_dale_inh_1 = lambda_val[dale_inh_1[idx_plateau]]
+    if len(dale_inh_1):
+        lambda_dale_inh_1 = lambda_val[dale_inh_1[idx_plateau]]
+    else:
+        lambda_dale_inh_1 = lambda_val[-1]
     return lambda_dale_exc_1, lambda_dale_inh_1
 
 
-def batch_compute_dale(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0,
-                       plateu_type=None):
+def batch_compute_dale(fpath_base, fpath_output=None, num_arr=np.arange(1, 11),
+                       idx_plateau=0, plateu_type=None):
     """Batch compute dale.
 
     plateu_type 'max' then get max lambda_plateau across exc and inh
@@ -123,18 +134,19 @@ def batch_compute_dale(fpath_base, num_arr=np.arange(1, 11), idx_plateau=0,
     dout['MCCpeak_inh'] = []
 
     for num in num_arr:
-        fpath = os.path.join(fpath_base, nu.snum(num))
-        print(fpath)
-        lamb_dale_exc, lamb_dale_inh = compute_dale(fpath, idx_plateau)
+        fpath_out = os.path.join(fpath_base, nu.snum(num))
+        print(fpath_out)
+        lamb_dale_exc, lamb_dale_inh = compute_dale(fpath_out, fpath_output,
+                                                    idx_plateau)
         dout['fname'].append('/'+nu.snum(num))
         dout['lambda_dale_exc'].append(lamb_dale_exc)
         dout['lambda_dale_inh'].append(lamb_dale_inh)
         # get the corresponding MCC
         fn_csv = os.path.join(fpath_base, nu.snum(num), 'confusion_mat.csv')
         df = pd.read_csv(fn_csv)
-        lambd = 1 / df['regularization_strength'].to_numpy()
-        mc_exc = matthew_coeff(select_conf_mat(df, 'exc'))
-        mc_inh = matthew_coeff(select_conf_mat(df, 'inh'))
+        lambd = 1 / df['regularization_strength'].to_numpy()[::-1]
+        mc_exc = matthew_coeff(select_conf_mat(df, 'exc'))[::-1]
+        mc_inh = matthew_coeff(select_conf_mat(df, 'inh'))[::-1]
         idx_exc = np.where(lambd == lamb_dale_exc)[0][0]
         idx_inh = np.where(lambd == lamb_dale_inh)[0][0]
         if plateu_type == 'max':
@@ -244,6 +256,7 @@ def summary_dale_plot(fpath_csv, fn_csv='dale.csv'):
     # plot 1
     plt.figure(figsize=figsize)
     xnoise = np.linspace(0, 0.01, 10)  # random.rand(len(mcc_dale)) / 50
+    """
     # exc
     plt.errorbar(x=out['peak']['exc']['mean'] + xnoise,
                  y=out['dale']['exc']['mean'],
@@ -258,11 +271,27 @@ def summary_dale_plot(fpath_csv, fn_csv='dale.csv'):
                  yerr=out['dale']['inh']['err'],
                  ecolor='b', elinewidth=1, color='b', lw=0, fmt='o',
                  label='inh')
-
+    """
+    # exc
+    xaxis = np.arange(1, 11)
+    plt.errorbar(x=xaxis,
+                 y=out['dale']['exc']['mean'],
+                 xerr=0,
+                 yerr=out['dale']['exc']['err'],
+                 ecolor='r', elinewidth=1, color='r', lw=0, fmt='o',
+                 label='exc')
+    # inh
+    plt.errorbar(x=xaxis,
+                 y=out['dale']['inh']['mean'],
+                 xerr=0,
+                 yerr=out['dale']['inh']['err'],
+                 ecolor='b', elinewidth=1, color='b', lw=0, fmt='o',
+                 label='inh')
     plt.legend(loc=0, fontsize=fs_legend)
     plt.xticks(fontsize=fs_ticks)
     plt.yticks(fontsize=fs_ticks)
-    plt.xlabel('MCC peak', fontsize=fs_lab)
+    #plt.xlabel('MCC peak', fontsize=fs_lab)
+    plt.xlabel('networks', fontsize=fs_lab)
     plt.ylabel('MCC dale', fontsize=fs_lab)
     plt.tight_layout(pad=1)
 
