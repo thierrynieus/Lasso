@@ -1,0 +1,15 @@
+{
+  "num_neurons": 100,
+  "num_exc_neurons": 80,
+  "pe": 0.2,
+  "pi": 0.2,
+  "sigma": 0.2,
+  "spatial_coordinates": true,
+  "sim_duration": 5000,
+  "rec_Vm": false,
+  "cc": {
+    "amplitude": 10.0,
+    "start": 100.0,
+    "stop": 10000000.0
+  }
+}

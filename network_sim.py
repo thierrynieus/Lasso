@@ -22,8 +22,7 @@ if not('fpath_results' in globals()):
 
 
 def shape_output(rec):
-    '''
-    '''
+    """Reshape output."""
     n = len(rec['noise'])
     dout = {}
     for k in range(n):
@@ -94,8 +93,7 @@ for conn in params_netw['conn_mat']:
         nest.Connect([neurons[src]], [neurons[dst]], syn_spec='GABA_syn_ie')
 
 
-''' run simulation
-'''
+""" run simulation """
 
 nest.Simulate(params_neurons['sim_duration'])
 

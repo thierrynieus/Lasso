@@ -1,0 +1,3 @@
+first test of 100 neurons, inspired by /home/tnieus/Projects/CODE/Lasso/config/20nrn_16exc_4inh/0004
+
+connectivity is wrongly recorded as 0.2 but it appears to be 0.3 ...

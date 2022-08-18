@@ -255,23 +255,6 @@ def summary_dale_plot(fpath_csv, fn_csv='dale.csv'):
 
     # plot 1
     plt.figure(figsize=figsize)
-    xnoise = np.linspace(0, 0.01, 10)  # random.rand(len(mcc_dale)) / 50
-    """
-    # exc
-    plt.errorbar(x=out['peak']['exc']['mean'] + xnoise,
-                 y=out['dale']['exc']['mean'],
-                 xerr=out['peak']['exc']['err'],
-                 yerr=out['dale']['exc']['err'],
-                 ecolor='r', elinewidth=1, color='r', lw=0, fmt='o',
-                 label='exc')
-    # inh
-    plt.errorbar(x=out['peak']['inh']['mean'] + xnoise,
-                 y=out['dale']['inh']['mean'],
-                 xerr=out['peak']['inh']['err'],
-                 yerr=out['dale']['inh']['err'],
-                 ecolor='b', elinewidth=1, color='b', lw=0, fmt='o',
-                 label='inh')
-    """
     # exc
     xaxis = np.arange(1, 11)
     plt.errorbar(x=xaxis,
@@ -290,7 +273,6 @@ def summary_dale_plot(fpath_csv, fn_csv='dale.csv'):
     plt.legend(loc=0, fontsize=fs_legend)
     plt.xticks(fontsize=fs_ticks)
     plt.yticks(fontsize=fs_ticks)
-    #plt.xlabel('MCC peak', fontsize=fs_lab)
     plt.xlabel('networks', fontsize=fs_lab)
     plt.ylabel('MCC dale', fontsize=fs_lab)
     plt.tight_layout(pad=1)

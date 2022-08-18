@@ -1,0 +1,11 @@
+{
+  "stim": {
+    "amplitude": 0.0,
+    "rate": 30.0
+  },
+  "syn": {
+    "model": "static_synapse",
+    "receptor_type": 1,
+    "weight": 2.5
+  }
+}

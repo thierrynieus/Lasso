@@ -4,11 +4,12 @@ from scipy.sparse import coo_matrix, block_diag
 from sklearn.linear_model import LogisticRegression
 import network_util as nu
 
-# https://stackoverflow.com/questions/14600948/matplotlib-plot-outputs-text-as-paths-and-cannot-be-converted-to-latex-by-inks
 import matplotlib
 matplotlib.rcParams['svg.fonttype'] = 'none'
-
-#  sklearn ver 1.0.2. on Indaco '0.21.3'
+"""
+https://stackoverflow.com/questions/14600948/
+matplotlib-plot-outputs-text-as-paths-and-cannot-be-converted-to-latex-by-inks
+"""
 
 import os
 import pandas as pd
@@ -33,12 +34,6 @@ params_lasso = {'regularization_strength': 1, 'rel_path_results': 'test',
                 'fname_lasso': 'RSmat_lasso.npy',
                 'skip_existent': True, 'max_iter': 3000, 'n_jobs': None,
                 'tol': 0.0001, 'solver': 'saga', 'warm_start': False}
-
-"""
-'solver': 'liblinear' good for small datasets, 'saga' for big datasets, 'saga'
-used also for Ridge and ElasticNet
-https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
-"""
 
 params_conf_mat = {'regularization_strength': 0.1, 'rel_path_results': 'test',
                    'fname_lasso': 'RSmat_lasso.npy',

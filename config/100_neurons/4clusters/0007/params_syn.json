@@ -1,0 +1,26 @@
+{
+  "ee": {
+    "receptor_type": 1,
+    "tau_P": 10.0,
+    "weight": 0.5,
+    "delay": 0.1
+  },
+  "ei": {
+    "receptor_type": 1,
+    "tau_P": 10.0,
+    "weight": 0.5,
+    "delay": 0.1
+  },
+  "ii": {
+    "receptor_type": 3,
+    "tau_P": 10.0,
+    "weight": 0.5,
+    "delay": 0.1
+  },
+  "ie": {
+    "receptor_type": 3,
+    "tau_P": 10.0,
+    "weight": 0.5,
+    "delay": 0.1
+  }
+}

@@ -11,13 +11,6 @@ import pandas as pd
 import network_util as nu
 import network_analysis as na
 
-
-'''
-> sincronia Kreuz
-> MFR, IFR
-> graph parameters ? networkx
- '''
-
 colormap = 'jet'
 fs_lab = 14
 fs_ticks = 12
@@ -27,8 +20,7 @@ fig_type = '.png'
 
 
 def plot_traces(fn_data, num_max=1e10, show_noise=True, delay=0):
-    '''
-    '''
+    """Plot all voltage traces."""
     data = nu.load_dict(fn_data)
     if not('vm' in list(data[0])):
         print('>>> Error: raw traces are not available!')
