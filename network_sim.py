@@ -75,6 +75,7 @@ for i_exc in params_netw['exc']:
     nest.SetStatus([neurons[i_exc]], ndef.ExNeuronC())
 for i_inh in params_netw['inh']:
     nest.SetStatus([neurons[i_inh]], ndef.ExNeuronC())
+    # ndef.InNeuronC was not used but can be tested for higher realism
 
 # connections
 for conn in params_netw['conn_mat']:

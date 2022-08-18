@@ -5,7 +5,6 @@ import glob
 import pylab as plt
 plt.ion()
 
-fpath_results = '/home/tnieus/Projects/RESULTS/Lasso/'
 fpath_cfg = '/home/tnieus/Projects/CODE/Lasso/config'
 
 
